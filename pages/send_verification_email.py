@@ -8,7 +8,7 @@ def send_verification_email(user_email, verification_token):
     sender_email = st.secrets["google_smtp"]["email"]
     sender_password = st.secrets["google_smtp"]["password"]
     
-    verification_link = f"http://localhost:8501/verify?token={verification_token}"
+    verification_link = f"https://insight-ops.streamlit.app/verify?token={verification_token}"
     subject = "Verify Your InsightOps Account"
     body = f"To verify your InsightOps account, follow this link: {verification_link}"
     
