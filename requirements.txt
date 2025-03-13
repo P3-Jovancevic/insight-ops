@@ -1,1 +1,5 @@
-streamlit\npymongo\nbcrypt\nrequests\nemail-validator
+streamlit
+pymongo
+bcrypt
+requests
+email-validator
