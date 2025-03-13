@@ -1,1 +1,8 @@
 streamlit
+pymongo
+bcrypt
+secrets
+re
+requests
+smtplib
+email-validator
