@@ -33,5 +33,3 @@ if token:
         st.error("Invalid or expired verification link.")
 else:
     st.error("No verification token provided.")
-
-
