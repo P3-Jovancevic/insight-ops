@@ -2,6 +2,9 @@ import streamlit as st
 import pymongo
 from pymongo import MongoClient
 
+# Hide this page from the navigation sidebar
+st.session_state["pages"] = [p for p in st.session_state.get("pages", []) if p != "Verify"]
+
 # Connect to MongoDB
 MONGODB_URI = st.secrets["mongo"]["uri"]
 client = pymongo.MongoClient(MONGODB_URI)
@@ -33,3 +36,5 @@ if token:
         st.error("Invalid or expired verification link.")
 else:
     st.error("No verification token provided.")
+
+
