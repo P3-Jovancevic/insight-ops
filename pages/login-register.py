@@ -4,7 +4,7 @@ from pymongo import MongoClient
 import bcrypt
 import re
 import secrets
-from pages.send_verification_email import send_verification_email
+from modules.send_verification_email import send_verification_email
 
 # Connect to MongoDB Atlas
 MONGODB_URI = st.secrets["mongo"]["uri"]
