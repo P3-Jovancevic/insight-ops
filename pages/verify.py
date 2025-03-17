@@ -28,7 +28,7 @@ if token:
         
         # Button to go to login page
         if st.button("Go to Login Page"):
-            st.switch_page("login-register.py")
+            st.switch_page("pages/login-register.py")
     else:
         st.error("Invalid or expired verification link.")
 else:
