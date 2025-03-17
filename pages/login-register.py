@@ -24,10 +24,10 @@ if "logged_in" not in st.session_state:
 
 if st.session_state["logged_in"]:
     st.subheader("You are currently logged in")
-    if st.button("Log out"):
+    if st.button("Sign out"):
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
-        st.experimental_rerun()
+        st.rerun()
 else:
     # Tabs for Login and Registration
     selected_tab = st.radio("Select an option", ["Login", "Register"], horizontal=True)
@@ -49,7 +49,7 @@ else:
                         st.session_state["logged_in"] = True
                         st.session_state["user_email"] = email
                         st.success("Login successful! Welcome back.")
-                        st.experimental_rerun()
+                        st.rerun()
                     else:
                         st.error("Your account is not verified. Please check your email.")
                 else:
