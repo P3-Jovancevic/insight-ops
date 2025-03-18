@@ -38,7 +38,7 @@ else:
         with st.form("login_form"):
             email = st.text_input("Email")
             password = st.text_input("Password", type="password")
-            st.markdown("[Forgot Password?](pages/forgot-password.py)")
+            st.markdown("[Forgot Password?](https://insight-ops.streamlit.app/forgot-password)")
             submit_button = st.form_submit_button("Login")
         
         if submit_button:
