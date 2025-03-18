@@ -1,7 +1,7 @@
 import streamlit as st
 import pymongo
 import secrets
-from send_verification_email import send_email  # Assuming this function sends emails
+from modules.send_forgot_password_email import send_forgot_password_email  # Assuming this function sends emails
 
 # Connect to MongoDB
 MONGODB_URI = st.secrets["mongo"]["uri"]
@@ -27,9 +27,9 @@ if st.button("Change Password"):
             verification_token = secrets.token_urlsafe(32)
             users_collection.update_one({"email": email}, {"$set": {"verification_token": verification_token}})
             
-            # Send password reset email
-            reset_url = f"{st.secrets['app']['base_url']}/change-password?token={verification_token}"
-            send_email(email, "Password Reset Request", f"Click here to reset your password: {reset_url}")
+            # Send verification email
+            verification_link = f"{st.secrets['app']['base_url']}/reset-password?token={verification_token}"
+            send_forgot_password_email(new_email, verification_token)
             
             st.success("If this email is registered, a password reset link has been sent.")
         else:

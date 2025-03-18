@@ -2,7 +2,7 @@ import smtplib
 from email.mime.text import MIMEText
 import streamlit as st
 
-def send_verification_email(user_email, verification_token):
+def send_forgot_password_email(user_email, verification_token):
     smtp_server = st.secrets["google_smtp"]["server"]
     smtp_port = st.secrets["google_smtp"]["port"]
     sender_email = st.secrets["google_smtp"]["email"]
