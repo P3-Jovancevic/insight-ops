@@ -4,7 +4,7 @@ from pymongo import MongoClient
 import bcrypt
 import re
 import secrets
-from modules.send_verification_email import send_email
+from modules.send_verification_email import send_verification_email
 
 # Connect to MongoDB Atlas
 MONGODB_URI = st.secrets["mongo"]["uri"]
@@ -104,6 +104,6 @@ else:
                     
                     # Send verification email
                     verification_link = f"{st.secrets['app']['base_url']}/verify?token={verification_token}"
-                    send_email(new_email, "Account Verification", f"Click the link to verify your account: {verification_link}")
+                    send_verification_email(new_email, "Account Verification", f"Click the link to verify your account: {verification_link}")
                     
                     st.success("Registration successful! A verification email has been sent.")
