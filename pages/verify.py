@@ -21,7 +21,7 @@ if token:
         # Update the verified field
         users_collection.update_one(
             {"verification_token": token},
-            {"$set": {"verified": True}}
+            {"$set": {"verified": True}, "$unset": {"verification_token": ""}}
         )
         
         st.success(f"User with email {user['email']} is now verified! You may now log in.")
