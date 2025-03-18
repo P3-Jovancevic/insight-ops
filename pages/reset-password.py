@@ -2,7 +2,6 @@ import streamlit as st
 import pymongo
 import bcrypt
 import re
-from urllib.parse import urlparse, parse_qs
 
 # Connect to MongoDB Atlas
 MONGODB_URI = st.secrets["mongo"]["uri"]
@@ -18,6 +17,11 @@ st.title("Reset Password")
 # Extract token from URL
 query_params = st.query_params
 verification_token = query_params.get("token", None)
+
+# Initialize session state for login
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["user_email"] = None
 
 if verification_token:
     user = users_collection.find_one({"verification_token": verification_token})
@@ -44,7 +48,15 @@ if verification_token:
                     {"email": email},
                     {"$set": {"password": hashed_password}, "$unset": {"verification_token": ""}}
                 )
-                st.success("Password reset successful! You can now log in with your new password.")
+                
+                st.success("Password successfully changed!")
+              
+                if st.session_state["logged_in"]:
+                    if st.button("Home"):
+                        st.switch_page("home.py")
+                else:
+                    if st.button("Log in"):
+                        st.switch_page("pages/login-register.py")
     else:
         st.error("Invalid or expired reset token.")
 else:
