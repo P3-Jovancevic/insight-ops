@@ -29,7 +29,7 @@ if st.button("Change Password"):
             
             # Send verification email
             verification_link = f"{st.secrets['app']['base_url']}/reset-password?token={verification_token}"
-            send_forgot_password_email(new_email, verification_token)
+            send_forgot_password_email(email, verification_token)
             
             st.success("If this email is registered, a password reset link has been sent.")
         else:
