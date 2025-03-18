@@ -53,10 +53,10 @@ if verification_token:
               
                 if st.session_state["logged_in"]:
                     if st.button("Home"):
-                        st.switch_page("home.py")
+                        st.switch_page("https://insight-ops.streamlit.app/")
                 else:
                     if st.button("Log in"):
-                        st.switch_page("pages/login-register.py")
+                        st.switch_page("https://insight-ops.streamlit.app/login-register")
     else:
         st.error("Invalid or expired reset token.")
 else:
