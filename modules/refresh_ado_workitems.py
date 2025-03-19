@@ -9,8 +9,8 @@ def refresh_work_items():
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/EnergyHubAlliance'
     project_name = "EHA"
-    mongo_uri = st.secrets["mongodb"]["uri"]  # MongoDB connection string
-    db_name = st.secrets["mongodb"]["db_name"]  # Database name
+    mongo_uri = st.secrets["mongo"]["uri"]  # MongoDB connection string
+    db_name = st.secrets["mongo"]["db_name"]  # Database name
 
     credentials = BasicAuthentication('AzureDevOps', personal_access_token)
     connection = Connection(base_url=organization_url, creds=credentials)
