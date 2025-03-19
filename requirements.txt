@@ -3,3 +3,5 @@ pymongo
 bcrypt
 requests
 email-validator
+azure-devops
+msrest
