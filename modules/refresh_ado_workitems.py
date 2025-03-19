@@ -7,8 +7,8 @@ def refresh_work_items():
     import streamlit as st
 
     personal_access_token = st.secrets["ado"]["ado_pat"]
-    organization_url = 'https://dev.azure.com/EnergyHubAlliance'
-    project_name = "EHA"
+    organization_url = 'https://dev.azure.com/p3ds/'
+    project_name = "P3-Tech-Master"
     mongo_uri = st.secrets["mongo"]["uri"]  # MongoDB connection string
     db_name = st.secrets["mongo"]["db_name"]  # Database name
 
