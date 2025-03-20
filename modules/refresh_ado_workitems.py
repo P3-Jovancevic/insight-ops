@@ -47,7 +47,7 @@ def refresh_work_items():
         print(f"Total Work Items found: {len(work_item_ids)}")
 
         batch_size = 200
-        inserted_count = 0
+        all_sanitized_items = []
 
         for i in range(0, len(work_item_ids), batch_size):
             batch = work_item_ids[i:i + batch_size]
@@ -56,23 +56,19 @@ def refresh_work_items():
             if not response:
                 break
 
-            sanitized_items = []
             for work_item in response:
                 sanitized_data = sanitize_keys(work_item.fields)
                 sanitized_data["System_Id"] = work_item.id  # Ensure System.Id is available
-                sanitized_items.append(sanitized_data)
+                all_sanitized_items.append(sanitized_data)
 
-            if sanitized_items:
-                # Insert or update work items directly in MongoDB
-                for item in sanitized_items:
-                    collection.update_one(
-                        {"System_Id": item["System_Id"]}, 
-                        {"$setOnInsert": item}, 
-                        upsert=True
-                    )
-                inserted_count += len(sanitized_items)
+        if all_sanitized_items:
+            # Ensure the collection exists before inserting
+            if collection.estimated_document_count() == 0:
+                db.create_collection("ado-workitems")
 
-        st.success(f"Stored {inserted_count} work items in MongoDB.")
+            # Insert data using insert_many (bulk insert)
+            collection.insert_many(all_sanitized_items)
+            st.success(f"Stored {len(all_sanitized_items)} work items in MongoDB.")
     
     except Exception as e:
         st.error(f"Error fetching or storing Work Items: {e}")
