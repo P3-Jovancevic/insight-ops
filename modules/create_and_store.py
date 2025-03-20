@@ -4,6 +4,7 @@ import streamlit as st
 import os
 
 def store_work_items():
+    
     # Load MongoDB credentials from Streamlit secrets
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]

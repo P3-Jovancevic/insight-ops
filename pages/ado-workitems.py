@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 from modules.refresh_ado_workitems import refresh_work_items
+from modules.create_and_store import create_and_store
 
 st.title("Azure DevOps Work Items")
 
@@ -42,6 +43,11 @@ else:
         st.dataframe(df)
     else:
         st.json(work_items)  # Fallback to showing JSON if structure is unknown
+
+# Button to store work items
+if st.button("Store Work Items"):
+    create_and_store()
+    st.success("Work items stored successfully!")
 
 # Button to delete the JSON file
 if os.path.exists(json_file_path):
