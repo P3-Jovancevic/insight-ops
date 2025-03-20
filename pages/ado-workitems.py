@@ -34,4 +34,4 @@ if os.path.exists(json_file_path):
     if st.button("Delete Stored Work Items"):
         os.remove(json_file_path)
         st.success("Work items JSON file deleted successfully!")
-        st.experimental_rerun()
+        st.rerun()  # Use this instead of st.experimental_rerun()
