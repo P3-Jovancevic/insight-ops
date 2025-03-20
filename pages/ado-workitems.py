@@ -42,9 +42,3 @@ else:
         st.dataframe(df)
     else:
         st.json(work_items)  # Fallback to JSON display
-
-# Button to delete all work items from MongoDB
-if st.button("Delete All Work Items"):
-    collection.delete_many({})  # Remove all documents from collection
-    st.success("All work items deleted from MongoDB!")
-    st.rerun()
