@@ -3,7 +3,7 @@ import json
 import os
 import pandas as pd
 from modules.refresh_ado_workitems import refresh_work_items
-from modules.create_and_store import create_and_store
+from modules.create_and_store import store_work_items
 
 st.title("Azure DevOps Work Items")
 
@@ -46,7 +46,7 @@ else:
 
 # Button to store work items
 if st.button("Store Work Items"):
-    create_and_store()
+    store_work_items()
     st.success("Work items stored successfully!")
 
 # Button to delete the JSON file
