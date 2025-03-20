@@ -39,7 +39,10 @@ try:
                 all_work_items.append(work_item.fields)
 
         # Debug log: Check retrieved data
-        print(f"Sample retrieved work item: {json.dumps(all_work_items[0], indent=4) if all_work_items else 'No data'}")
+        if all_work_items:
+            print(f"Sample retrieved work item: {json.dumps(all_work_items[0], indent=4)}")
+        else:
+            print("No work items retrieved from Azure DevOps.")
 
         # Connect to MongoDB
         client = MongoClient(mongo_uri)
@@ -48,8 +51,11 @@ try:
         collection = db[collection_name]
 
         for item in all_work_items:
-            result = collection.update_one({"System.Id": item.get("System.Id")}, {"$set": item}, upsert=True)
-            print(f"Upserted document with System.Id {item.get('System.Id')}: {result.matched_count} matched, {result.upserted_id} inserted")
+            if "System.Id" in item:
+                result = collection.update_one({"System.Id": item["System.Id"]}, {"$set": item}, upsert=True)
+                print(f"Upserted document with System.Id {item['System.Id']}: {result.matched_count} matched, {result.upserted_id} inserted")
+            else:
+                print("Warning: Work item missing 'System.Id' field.")
 
         print(f"Total Work Items stored in MongoDB: {collection.count_documents({})}")
 
