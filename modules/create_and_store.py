@@ -3,6 +3,15 @@ import os
 import streamlit as st
 from pymongo import MongoClient
 
+def sanitize_keys(d):
+    """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
+    if isinstance(d, dict):
+        return {k.replace(".", "_").replace("$", "_"): sanitize_keys(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [sanitize_keys(i) for i in d]
+    else:
+        return d
+
 def store_work_items():
     try:
         # Load MongoDB credentials from Streamlit secrets
@@ -35,11 +44,17 @@ def store_work_items():
             st.warning("JSON file is empty. No data to store.")
             return
 
-        # Insert or update work items in the database
+        # Sanitize and store work items
+        work_items = sanitize_keys(work_items)
+
         inserted_count = 0
         for item in work_items:
-            if "System.Id" in item:
-                collection.update_one({"System.Id": item["System.Id"]}, {"$set": item}, upsert=True)
+            if "System_Id" in item:  # Replaced dot with underscore
+                collection.update_one(
+                    {"System_Id": item["System_Id"]}, 
+                    {"$setOnInsert": item}, 
+                    upsert=True
+                )
                 inserted_count += 1
             else:
                 st.warning("Skipping an item without 'System.Id'")
