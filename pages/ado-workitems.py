@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from pymongo import MongoClient
-from datetime import datetime, timedelta
 from modules.refresh_ado_workitems import refresh_work_items
 
 st.title("Azure DevOps Work Items")
@@ -45,39 +44,23 @@ else:
     else:
         st.json(work_items)  # Fallback to JSON display
 
-    # --- Cumulative Flow Diagram (CFD) ---
-    st.subheader("Cumulative Flow Diagram")
+    # Ensure System_ChangedDate is in datetime format
+    if "System_ChangedDate" in df.columns:
+        df["System_ChangedDate"] = pd.to_datetime(df["System_ChangedDate"], errors="coerce")
+    
+    # Date filter - default last 3 months
+    end_date = pd.Timestamp.today()
+    start_date = end_date - pd.DateOffset(months=3)
+    start_date = st.date_input("Start Date", start_date)
+    end_date = st.date_input("End Date", end_date)
 
-    # Date filter (default: last 3 months)
-    end_date = datetime.today()
-    start_date = end_date - timedelta(days=90)
-    date_range = st.date_input("Select Date Range", (start_date, end_date))
+    # Filter data based on date range
+    df_filtered = df[(df["System_ChangedDate"] >= pd.Timestamp(start_date)) & 
+                      (df["System_ChangedDate"] <= pd.Timestamp(end_date))]
 
-    # Ensure date input is valid
-    if isinstance(date_range, tuple) and len(date_range) == 2:
-        start_date, end_date = date_range
-    else:
-        st.warning("Invalid date range selected.")
-        st.stop()
-
-    # Convert date fields
-    df["System_ChangedDate"] = pd.to_datetime(df["System_ChangedDate"], errors="coerce")
-
-    # Filter by date range
-    df_filtered = df[(df["System_ChangedDate"] >= pd.Timestamp(start_date)) &
-                     (df["System_ChangedDate"] <= pd.Timestamp(end_date))]
-
-    # Group by date and state
+    # Plot Cumulative Flow Diagram
     if not df_filtered.empty:
-        cfd_data = df_filtered.groupby([df_filtered["System_ChangedDate"].dt.date, "System_State"]) \
-                              .size().reset_index(name="Count")
-
-        # Create Cumulative Flow Diagram
-        fig = px.area(cfd_data, x="System_ChangedDate", y="Count", color="System_State",
-                      title="Cumulative Flow Diagram",
-                      labels={"System_ChangedDate": "Date", "Count": "Work Items", "System_State": "State"},
-                      line_group="System_State")
-
-        st.plotly_chart(fig, use_container_width=True)
+        fig = px.area(df_filtered, x="System_ChangedDate", y="State", color="State", title="Cumulative Flow Diagram")
+        st.plotly_chart(fig)
     else:
-        st.warning("No work items found in the selected date range.")
+        st.warning("No data available for the selected date range.")
