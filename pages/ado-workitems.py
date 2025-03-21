@@ -47,20 +47,29 @@ else:
     # Ensure System_ChangedDate is in datetime format
     if "System_ChangedDate" in df.columns:
         df["System_ChangedDate"] = pd.to_datetime(df["System_ChangedDate"], errors="coerce")
-    
-    # Date filter - default last 3 months
-    end_date = pd.Timestamp.today()
-    start_date = end_date - pd.DateOffset(months=3)
-    start_date = st.date_input("Start Date", start_date)
-    end_date = st.date_input("End Date", end_date)
 
-    # Filter data based on date range
-    df_filtered = df[(df["System_ChangedDate"] >= pd.Timestamp(start_date)) & 
-                      (df["System_ChangedDate"] <= pd.Timestamp(end_date))]
+        # Date filter - Default to last 3 months
+        max_date = df["System_ChangedDate"].max()
+        min_date = max_date - pd.DateOffset(months=3) if pd.notna(max_date) else pd.Timestamp.today() - pd.DateOffset(months=3)
+        start_date, end_date = st.date_input("Select Date Range:", [min_date, max_date])
+        
+        # Convert to Timestamp for filtering
+        start_date = pd.Timestamp(start_date)
+        end_date = pd.Timestamp(end_date)
+        
+        # Filter data based on date selection
+        df_filtered = df[(df["System_ChangedDate"] >= start_date) & (df["System_ChangedDate"] <= end_date)]
 
-    # Plot Cumulative Flow Diagram
-    if not df_filtered.empty:
-        fig = px.area(df_filtered, x="System_ChangedDate", y="State", color="State", title="Cumulative Flow Diagram")
-        st.plotly_chart(fig)
-    else:
-        st.warning("No data available for the selected date range.")
+        # Create Cumulative Flow Diagram (CFD)
+        if not df_filtered.empty:
+            cfd_fig = px.area(
+                df_filtered,
+                x="System_ChangedDate",
+                color="System_State",
+                title="Cumulative Flow Diagram",
+                labels={"System_ChangedDate": "Date", "System_State": "Work Item State"},
+                category_orders={"System_State": sorted(df_filtered["System_State"].unique())}
+            )
+            st.plotly_chart(cfd_fig)
+        else:
+            st.warning("No work items found in the selected date range.")
