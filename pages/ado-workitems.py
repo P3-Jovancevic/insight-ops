@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from pymongo import MongoClient
+from datetime import datetime, timedelta
 from modules.refresh_ado_workitems import refresh_work_items
 
 st.title("Azure DevOps Work Items")
@@ -42,3 +44,40 @@ else:
         st.dataframe(df)
     else:
         st.json(work_items)  # Fallback to JSON display
+
+    # --- Cumulative Flow Diagram (CFD) ---
+    st.subheader("Cumulative Flow Diagram")
+
+    # Date filter (default: last 3 months)
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=90)
+    date_range = st.date_input("Select Date Range", (start_date, end_date))
+
+    # Ensure date input is valid
+    if isinstance(date_range, tuple) and len(date_range) == 2:
+        start_date, end_date = date_range
+    else:
+        st.warning("Invalid date range selected.")
+        st.stop()
+
+    # Convert date fields
+    df["System_ChangedDate"] = pd.to_datetime(df["System_ChangedDate"], errors="coerce")
+
+    # Filter by date range
+    df_filtered = df[(df["System_ChangedDate"] >= pd.Timestamp(start_date)) &
+                     (df["System_ChangedDate"] <= pd.Timestamp(end_date))]
+
+    # Group by date and state
+    if not df_filtered.empty:
+        cfd_data = df_filtered.groupby([df_filtered["System_ChangedDate"].dt.date, "System_State"]) \
+                              .size().reset_index(name="Count")
+
+        # Create Cumulative Flow Diagram
+        fig = px.area(cfd_data, x="System_ChangedDate", y="Count", color="System_State",
+                      title="Cumulative Flow Diagram",
+                      labels={"System_ChangedDate": "Date", "Count": "Work Items", "System_State": "State"},
+                      line_group="System_State")
+
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("No work items found in the selected date range.")
