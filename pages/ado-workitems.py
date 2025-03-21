@@ -55,8 +55,8 @@ else:
         start_date, end_date = st.date_input("Select Date Range:", [min_date.date(), max_date.date()])
         
         # Convert to Timestamp for filtering
-        start_date = pd.Timestamp(start_date)
-        end_date = pd.Timestamp(end_date)
+        start_date = pd.Timestamp(start_date).to_numpy()
+        end_date = pd.Timestamp(end_date).to_numpy()
         
         # Filter data based on date selection
         df_filtered = df[(df["System_ChangedDate"] >= start_date) & (df["System_ChangedDate"] <= end_date)]
