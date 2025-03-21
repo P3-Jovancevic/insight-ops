@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from pymongo import MongoClient
 from modules.refresh_ado_workitems import refresh_work_items
 
@@ -43,34 +42,3 @@ else:
         st.dataframe(df)
     else:
         st.json(work_items)  # Fallback to JSON display
-
-    # Ensure System_ChangedDate is in datetime format
-    if "System_ChangedDate" in df.columns:
-        df["System_ChangedDate"] = pd.to_datetime(df["System_ChangedDate"], errors="coerce")
-        df = df.dropna(subset=["System_ChangedDate"])  # Drop rows with NaT values
-
-        # Date filter - Default to last 3 months
-        max_date = df["System_ChangedDate"].max()
-        min_date = max_date - pd.DateOffset(months=3) if pd.notna(max_date) else pd.Timestamp.today() - pd.DateOffset(months=3)
-        start_date, end_date = st.date_input("Select Date Range:", [min_date.date(), max_date.date()])
-        
-        # Convert to Timestamp for filtering
-        start_date = pd.Timestamp(start_date).to_numpy()
-        end_date = pd.Timestamp(end_date).to_numpy()
-        
-        # Filter data based on date selection
-        df_filtered = df[(df["System_ChangedDate"] >= start_date) & (df["System_ChangedDate"] <= end_date)]
-
-        # Create Cumulative Flow Diagram (CFD)
-        if not df_filtered.empty:
-            cfd_fig = px.area(
-                df_filtered,
-                x="System_ChangedDate",
-                color="System_State",
-                title="Cumulative Flow Diagram",
-                labels={"System_ChangedDate": "Date", "System_State": "Work Item State"},
-                category_orders={"System_State": sorted(df_filtered["System_State"].unique())}
-            )
-            st.plotly_chart(cfd_fig)
-        else:
-            st.warning("No work items found in the selected date range.")
