@@ -3,13 +3,14 @@ from msrest.authentication import BasicAuthentication
 import streamlit as st
 from pymongo import MongoClient, UpdateOne
 import traceback
+from azure.devops.v7_0.work.models import TeamContext
 
 def refresh_velocity_data():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
     project_name = "P3-Tech-Master"
-    team_name = "P3-Tech-Master"  # Update with the correct team name
+    team_name = "P3-Tech-Master Team"  # Update with the correct team name
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
 
@@ -28,7 +29,8 @@ def refresh_velocity_data():
     # Fetch iteration details
     iteration_dates = {}
     try:
-        iterations = team_client.get_team_iterations(project_name, team_name)
+        team_context = TeamContext(project=project_name, team=team_name)
+        iterations = team_client.get_team_iterations(team_context)
         for iteration in iterations:
             iteration_dates[iteration.path] = {
                 "IterationStartDate": iteration.attributes.start_date.isoformat() if iteration.attributes.start_date else None,
