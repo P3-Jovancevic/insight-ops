@@ -2,8 +2,8 @@ from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
 import streamlit as st
 from pymongo import MongoClient, UpdateOne
+from datetime import datetime
 import traceback
-from azure.devops.v7_0.work.models import TeamContext
 
 def refresh_velocity_data():
     # Load secrets
@@ -29,12 +29,11 @@ def refresh_velocity_data():
     # Fetch iteration details
     iteration_dates = {}
     try:
-        team_context = TeamContext(project=project_name, team=team_name)
-        iterations = team_client.get_team_iterations(team_context)
+        iterations = team_client.get_team_iterations(project_name, team_name)
         for iteration in iterations:
             iteration_dates[iteration.path] = {
-                "IterationStartDate": iteration.attributes.start_date.isoformat() if iteration.attributes.start_date else None,
-                "IterationEndDate": iteration.attributes.finish_date.isoformat() if iteration.attributes.finish_date else None
+                "IterationStartDate": iteration.attributes.start_date if iteration.attributes.start_date else None,
+                "IterationEndDate": iteration.attributes.finish_date if iteration.attributes.finish_date else None
             }
     except Exception as e:
         st.error(f"Failed to fetch iteration dates: {e}")
@@ -80,6 +79,12 @@ def refresh_velocity_data():
                 closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
                 iteration_start = iteration_dates.get(iteration, {}).get("IterationStartDate")
                 iteration_end = iteration_dates.get(iteration, {}).get("IterationEndDate")
+
+                # Convert iteration dates to datetime objects
+                if iteration_start and isinstance(iteration_start, str):
+                    iteration_start = datetime.fromisoformat(iteration_start)
+                if iteration_end and isinstance(iteration_end, str):
+                    iteration_end = datetime.fromisoformat(iteration_end)
 
                 if iteration not in iteration_data:
                     iteration_data[iteration] = {
