@@ -1,7 +1,7 @@
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
 import streamlit as st
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 import traceback
 
 def refresh_velocity_data():
@@ -55,8 +55,8 @@ def refresh_velocity_data():
 
             for work_item in response:
                 fields = work_item.fields
-                iteration = fields.get("System.IterationPath", "Unknown")
-                state = fields.get("System.State", "")
+                iteration = fields.get("System.IterationPath", "Unknown").strip()
+                state = fields.get("System.State", "").lower()
                 effort = fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
                 closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
 
@@ -69,20 +69,28 @@ def refresh_velocity_data():
                     }
                 
                 iteration_data[iteration]["TotalUserStories"] += 1
-                if state.lower() == "done" and closed_date:
+                if state == "done" and closed_date:
                     iteration_data[iteration]["DoneUserStories"] += 1
                     iteration_data[iteration]["SumEffortDone"] += effort
         
-        # Insert or update data in MongoDB
-        for iteration, data in iteration_data.items():
-            collection.update_one(
+        # Insert or update data in MongoDB using bulk_write
+        bulk_operations = [
+            UpdateOne(
                 {"IterationName": data["IterationName"]},
                 {"$set": data},
                 upsert=True
-            )
-
+            ) for data in iteration_data.values()
+        ]
+        
+        if bulk_operations:
+            collection.bulk_write(bulk_operations)
+        
         st.success(f"Velocity data updated for {len(iteration_data)} iterations.")
     
     except Exception as e:
         st.error(f"Error fetching or storing velocity data: {e}")
+        st.text(f"WIQL Query: {wiql_query}")  # Show query for debugging
         st.error(traceback.format_exc())
+    
+    finally:
+        client.close()  # Ensure MongoDB connection is closed
