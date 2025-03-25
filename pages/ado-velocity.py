@@ -8,7 +8,7 @@ st.title("Azure DevOps Velocity")
 # Load MongoDB credentials from Streamlit secrets
 mongo_uri = st.secrets["mongo"]["uri"]
 db_name = st.secrets["mongo"]["db_name"]
-collection_name = "ado-velocity"
+collection_name = "velocity-data"
 
 # Connect to MongoDB
 client = MongoClient(mongo_uri)
