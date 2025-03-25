@@ -2,6 +2,7 @@ from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
 import streamlit as st
 from pymongo import MongoClient, UpdateOne
+from azure.devops.v7_0.work.models import TeamContext
 from datetime import datetime
 import traceback
 
@@ -29,7 +30,9 @@ def refresh_velocity_data():
     # Fetch iteration details
     iteration_dates = {}
     try:
-        iterations = team_client.get_team_iterations(project_name, team_name)
+        # Create TeamContext using project name and team name
+        team_context = TeamContext(project=project_name, team=team_name)
+        iterations = team_client.get_team_iterations(team_context)
         for iteration in iterations:
             iteration_dates[iteration.path] = {
                 "IterationStartDate": iteration.attributes.start_date if iteration.attributes.start_date else None,
