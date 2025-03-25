@@ -16,11 +16,16 @@ def refresh_velocity_data():
     credentials = BasicAuthentication('', personal_access_token)
     connection = Connection(base_url=organization_url, creds=credentials)
     wit_client = connection.clients.get_work_item_tracking_client()
+    core_client = connection.clients.get_core_client()
 
     # Connect to MongoDB
     client = MongoClient(mongo_uri)
     db = client[db_name]
     collection = db["velocity-data"]
+
+    # Get iterations
+    iterations = core_client.get_team_iterations_by_project(project=project_name)
+    iteration_dates = {i.path: (i.attributes.start_date, i.attributes.finish_date) for i in iterations}
 
     # Define WIQL query to get all user stories grouped by iteration
     wiql_query = {
@@ -59,10 +64,13 @@ def refresh_velocity_data():
                 state = fields.get("System.State", "")
                 effort = fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
                 closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
+                start_date, end_date = iteration_dates.get(iteration, (None, None))
 
                 if iteration not in iteration_data:
                     iteration_data[iteration] = {
                         "IterationName": iteration,
+                        "IterationStartDate": start_date,
+                        "IterationEndDate": end_date,
                         "TotalUserStories": 0,
                         "DoneUserStories": 0,
                         "SumEffortDone": 0
