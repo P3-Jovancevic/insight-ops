@@ -28,7 +28,7 @@ def refresh_velocity_data():
     # Fetch iteration details
     iteration_dates = {}
     try:
-        iterations = team_client.get_team_iterations(project=project_name, team=team_name)
+        iterations = team_client.get_team_iterations(project_name, team_name)
         for iteration in iterations:
             iteration_dates[iteration.path] = {
                 "IterationStartDate": iteration.attributes.start_date.isoformat() if iteration.attributes.start_date else None,
