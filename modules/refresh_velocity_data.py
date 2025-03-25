@@ -9,6 +9,7 @@ def refresh_velocity_data():
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
     project_name = "P3-Tech-Master"
+    team_name = "P3-Tech-Team"  # Update with the correct team name
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
 
@@ -16,11 +17,27 @@ def refresh_velocity_data():
     credentials = BasicAuthentication('', personal_access_token)
     connection = Connection(base_url=organization_url, creds=credentials)
     wit_client = connection.clients.get_work_item_tracking_client()
+    core_client = connection.clients.get_core_client()
+    team_client = connection.clients.get_work_client()
 
     # Connect to MongoDB
     client = MongoClient(mongo_uri)
     db = client[db_name]
     collection = db["velocity-data"]
+
+    # Fetch iteration details
+    iteration_dates = {}
+    try:
+        iterations = team_client.get_team_iterations(organization_url.split('//')[1].split('.')[0], project_name, team_name)
+        for iteration in iterations:
+            iteration_dates[iteration.path] = {
+                "IterationStartDate": iteration.attributes.start_date.isoformat() if iteration.attributes.start_date else None,
+                "IterationEndDate": iteration.attributes.finish_date.isoformat() if iteration.attributes.finish_date else None
+            }
+    except Exception as e:
+        st.error(f"Failed to fetch iteration dates: {e}")
+        st.error(traceback.format_exc())
+        return
 
     # Define WIQL query to get all user stories grouped by iteration
     wiql_query = {
@@ -59,10 +76,14 @@ def refresh_velocity_data():
                 state = fields.get("System.State", "").lower()
                 effort = fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
                 closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
+                iteration_start = iteration_dates.get(iteration, {}).get("IterationStartDate")
+                iteration_end = iteration_dates.get(iteration, {}).get("IterationEndDate")
 
                 if iteration not in iteration_data:
                     iteration_data[iteration] = {
                         "IterationName": iteration,
+                        "IterationStartDate": iteration_start,
+                        "IterationEndDate": iteration_end,
                         "TotalUserStories": 0,
                         "DoneUserStories": 0,
                         "SumEffortDone": 0
