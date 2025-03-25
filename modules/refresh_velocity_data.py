@@ -9,7 +9,7 @@ def refresh_velocity_data():
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
     project_name = "P3-Tech-Master"
-    team_name = "P3-Tech-Team"  # Update with the correct team name
+    team_name = "P3-Tech-Master"  # Update with the correct team name
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
 
