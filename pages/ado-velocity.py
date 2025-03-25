@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pymongo import MongoClient
-from modules.refresh_velocity_data import refresh_velocity
+from modules.refresh_velocity_data import refresh_velocity_data
 
 st.title("Azure DevOps Velocity")
 
@@ -17,7 +17,7 @@ collection = db[collection_name]
 
 # Button to refresh work items
 if st.button("↻ Refresh"):
-    refresh_velocity()  # Fetch and store data directly in MongoDB
+    refresh_velocity_data()  # Fetch and store data directly in MongoDB
     st.success("Velocity data refreshed successfully!")
     st.rerun()
 

@@ -4,16 +4,7 @@ import streamlit as st
 from pymongo import MongoClient
 import traceback
 
-def sanitize_keys(d):
-    """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
-    if isinstance(d, dict):
-        return {k.replace(".", "_").replace("$", "_"): sanitize_keys(v) for k, v in d.items()}
-    elif isinstance(d, list):
-        return [sanitize_keys(i) for i in d]
-    else:
-        return d
-
-def refresh_velocity():
+def refresh_velocity_data():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
@@ -29,11 +20,16 @@ def refresh_velocity():
     # Connect to MongoDB
     client = MongoClient(mongo_uri)
     db = client[db_name]
-    collection = db["ado-velocity"]
+    collection = db["velocity-data"]
 
-    # Define WIQL query
+    # Define WIQL query to get all user stories grouped by iteration
     wiql_query = {
-        "query": f"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project_name}'"
+        "query": f"""
+            SELECT [System.Id], [System.IterationPath], [System.State], [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
+            FROM WorkItems
+            WHERE [System.TeamProject] = '{project_name}'
+            AND [System.WorkItemType] = 'User Story'
+        """
     }
 
     try:
@@ -42,12 +38,13 @@ def refresh_velocity():
         work_item_ids = [wi.id for wi in query_results.work_items]
 
         if not work_item_ids:
-            st.warning("No Work Items found in project.")
+            st.warning("No User Stories found.")
             return
 
-        st.info(f"Total Work Items found: {len(work_item_ids)}")
+        st.info(f"Total User Stories found: {len(work_item_ids)}")
 
         batch_size = 200
+        iteration_data = {}
 
         for i in range(0, len(work_item_ids), batch_size):
             batch = work_item_ids[i:i + batch_size]
@@ -57,18 +54,35 @@ def refresh_velocity():
                 break
 
             for work_item in response:
-                sanitized_data = sanitize_keys(work_item.fields)
-                sanitized_data["System_Id"] = work_item.id  # Ensure System.Id is available
+                fields = work_item.fields
+                iteration = fields.get("System.IterationPath", "Unknown")
+                state = fields.get("System.State", "")
+                effort = fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
+                closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
 
-                # Use upsert to avoid duplicates
-                collection.update_one(
-                    {"System_Id": sanitized_data["System_Id"]},
-                    {"$set": sanitized_data},
-                    upsert=True
-                )
+                if iteration not in iteration_data:
+                    iteration_data[iteration] = {
+                        "IterationName": iteration,
+                        "TotalUserStories": 0,
+                        "DoneUserStories": 0,
+                        "SumEffortDone": 0
+                    }
+                
+                iteration_data[iteration]["TotalUserStories"] += 1
+                if state.lower() == "done" and closed_date:
+                    iteration_data[iteration]["DoneUserStories"] += 1
+                    iteration_data[iteration]["SumEffortDone"] += effort
+        
+        # Insert or update data in MongoDB
+        for iteration, data in iteration_data.items():
+            collection.update_one(
+                {"IterationName": data["IterationName"]},
+                {"$set": data},
+                upsert=True
+            )
 
-        st.success(f"Stored or updated {len(work_item_ids)} work items in MongoDB.")
+        st.success(f"Velocity data updated for {len(iteration_data)} iterations.")
     
     except Exception as e:
-        st.error(f"Error fetching or storing Work Items: {e}")
+        st.error(f"Error fetching or storing velocity data: {e}")
         st.error(traceback.format_exc())
