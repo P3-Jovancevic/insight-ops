@@ -68,14 +68,20 @@ else:
         # Drop rows where the date conversion failed (e.g., invalid date formats)
         df = df.dropna(subset=["IterationStartDate"])
 
+        # Ensure DoneUserStories is non-negative
+        df["DoneUserStories"] = pd.to_numeric(df["DoneUserStories"], errors="coerce").clip(lower=0)
+
         # Sort data by IterationStartDate
         df = df.sort_values(by="IterationStartDate")
 
-        # Create the line chart
+        # Create the line chart with y-axis starting at 0
         st.subheader("Done User Stories Over Iterations")
         fig = px.line(df, x="IterationName", y="DoneUserStories", 
                       title="Done User Stories Over Iterations",
                       markers=True)
+        
+        # Force y-axis to start at 0
+        fig.update_yaxes(range=[0, df["DoneUserStories"].max()])
 
         # Display the chart
         st.plotly_chart(fig, use_container_width=True)
