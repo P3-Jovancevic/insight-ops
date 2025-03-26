@@ -75,20 +75,16 @@ else:
         # Sort data by IterationEndDate
         df = df.sort_values(by="IterationEndDate")
 
+        # Set default start date to 60 days ago and end date to today
+        start_date_default = datetime.today() - timedelta(days=60)
+        end_date_default = datetime.today()
+
         # Add a calendar date picker for filtering (start and end dates)
         min_date = df["IterationEndDate"].min().date()
         max_date = df["IterationEndDate"].max().date()
 
-        # Calculate the default date range for the last 2 months
-        end_date_default = datetime.today().date()  # Today's date
-        start_date_default = end_date_default - timedelta(days=60)  # 60 days ago (approx 2 months)
-
-        # If the calculated start date is earlier than the minimum date in the data, use the minimum date instead
-        start_date_default = max(start_date_default, min_date)
-
-        # Set the date inputs to the last 2 months as default (convert datetime to date)
-        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=start_date_default)
-        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=end_date_default)
+        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=start_date_default.date())
+        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=end_date_default.date())
 
         # Filter the DataFrame based on the selected date range
         df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
