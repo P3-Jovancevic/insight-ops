@@ -58,4 +58,19 @@ else:
     # Ensure the necessary columns exist
     if {"IterationName", "IterationStartDate", "DoneUserStories"}.issubset(df.columns):
         # Convert IterationStartDate to datetime
-        df["IterationStartDate"] = pd.to
+        df["IterationStartDate"] = pd.to_datetime(df["IterationStartDate"])
+
+        # Sort data by IterationStartDate
+        df = df.sort_values(by="IterationStartDate")
+
+        # Create the line chart
+        st.subheader("Done User Stories Over Iterations")
+        fig = px.line(df, x="IterationName", y="DoneUserStories", 
+                      title="Done User Stories Over Iterations",
+                      markers=True)
+
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.warning("Required fields (IterationName, IterationStartDate, DoneUserStories) are missing.")
