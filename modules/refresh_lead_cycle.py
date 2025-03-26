@@ -42,8 +42,8 @@ def refresh_lead_cycle():
         continuation_token = None
 
         while True:
-            query_results = wit_client.query_by_wiql(wiql_query, continuation_token=continuation_token)
-            
+            query_results = wit_client.query_by_wiql(wiql_query)
+
             # Check if continuation_token exists in the response
             if hasattr(query_results, 'continuation_token') and query_results.continuation_token:
                 continuation_token = query_results.continuation_token
