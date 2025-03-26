@@ -13,7 +13,7 @@ def sanitize_keys(d):
     else:
         return d
 
-def refresh_work_items():
+def refresh_lead_cycle():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
