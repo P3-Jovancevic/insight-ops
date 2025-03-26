@@ -52,8 +52,8 @@ else:
     df = pd.DataFrame(work_items)
 
     # Display the table
-    # st.subheader("Velocity") # Commented out to hide the table
-    # st.dataframe(df) # Commented out to hide the table
+    st.subheader("Cycle time") # Commented out to hide the table
+    st.dataframe(df) # Commented out to hide the table
 
     # Ensure the necessary columns exist
     required_columns = {"IterationName", "IterationEndDate", "DoneUserStories", "SumEffortDone"}

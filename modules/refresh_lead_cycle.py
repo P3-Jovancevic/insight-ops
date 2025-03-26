@@ -113,7 +113,6 @@ def refresh_lead_cycle():
             st.error(f"Error fetching or storing lead & cycle time data: {e}")
             st.text(f"WIQL Query: {wiql_query}")  # Debugging
             st.error(traceback.format_exc())
-
-    
-    finally:
-        client.close()  # Ensure MongoDB connection is closed
+            
+        finally:
+            client.close()  # Ensure MongoDB connection is closed
