@@ -74,17 +74,12 @@ else:
         # Sort data by IterationEndDate
         df = df.sort_values(by="IterationEndDate")
 
-        # Add a date range picker for filtering
+        # Add a calendar date picker for filtering (start and end dates)
         min_date = df["IterationEndDate"].min().date()
         max_date = df["IterationEndDate"].max().date()
 
-        start_date, end_date = st.slider(
-            "Select date range",
-            min_value=min_date,
-            max_value=max_date,
-            value=(min_date, max_date),
-            format="YYYY-MM-DD"
-        )
+        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=min_date)
+        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=max_date)
 
         # Filter the DataFrame based on the selected date range
         df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
