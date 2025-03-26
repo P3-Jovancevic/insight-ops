@@ -101,7 +101,7 @@ else:
 
         # Create the first line chart (Done User Stories)
         fig2 = px.line(df_filtered, x="IterationName", y="DoneUserStories", 
-                       title="Done User Stories Over Iterations", markers=True)
+                       title="Number of stories Done", markers=True)
         
         # Force y-axis to start at 0 and avoid negative values
         fig2.update_layout(
