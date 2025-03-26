@@ -31,15 +31,30 @@ def refresh_work_items():
     db = client[db_name]
     collection = db["ado-workitems"]
 
+    # Create index on System_Id to improve performance
+    collection.create_index([("System_Id", 1)], unique=True)
+
     # Define WIQL query
     wiql_query = {
         "query": f"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project_name}'"
     }
 
     try:
-        # Execute WIQL query
-        query_results = wit_client.query_by_wiql(wiql_query)
-        work_item_ids = [wi.id for wi in query_results.work_items]
+        # Execute WIQL query with pagination
+        work_item_ids = []
+        continuation_token = None
+
+        while True:
+            if continuation_token:
+                query_results = wit_client.query_by_wiql(wiql_query, continuation_token=continuation_token)
+            else:
+                query_results = wit_client.query_by_wiql(wiql_query)
+
+            work_item_ids.extend([wi.id for wi in query_results.work_items])
+
+            if not query_results.continuation_token:
+                break
+            continuation_token = query_results.continuation_token
 
         if not work_item_ids:
             st.warning("No Work Items found in project.")
@@ -68,7 +83,11 @@ def refresh_work_items():
                 )
 
         st.success(f"Stored or updated {len(work_item_ids)} work items in MongoDB.")
-    
+        
+        # Display stored data (for verification)
+        work_items = collection.find().limit(5)  # Display 5 work items as an example
+        st.write("Sample Work Items:", list(work_items))
+
     except Exception as e:
         st.error(f"Error fetching or storing Work Items: {e}")
         st.error(traceback.format_exc())
