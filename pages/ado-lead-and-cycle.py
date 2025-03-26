@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pymongo import MongoClient
-from modules.refresh_ado_workitems import refresh_work_items
+from modules.refresh_lead_cycle import refresh_lead_cycle
 
 st.title("Azure DevOps Work Items")
 
@@ -17,7 +17,7 @@ collection = db[collection_name]
 
 # Button to refresh work items
 if st.button("↻ Refresh"):
-    refresh_work_items()  # Fetch and store data directly in MongoDB
+    refresh_lead_cycle()  # Fetch and store data directly in MongoDB
     st.success("Work items refreshed successfully!")
     st.rerun()
 

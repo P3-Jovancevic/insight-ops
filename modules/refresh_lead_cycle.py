@@ -1,26 +1,6 @@
-from azure.devops.connection import Connection
-from msrest.authentication import BasicAuthentication
-import streamlit as st
-from pymongo import MongoClient
-import traceback
-from datetime import datetime
+from pymongo.errors import DuplicateKeyError
 
-def sanitize_keys(d):
-    """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
-    if isinstance(d, dict):
-        return {k.replace(".", "_").replace("$", "_"): sanitize_keys(v) for k, v in d.items()}
-    elif isinstance(d, list):
-        return [sanitize_keys(i) for i in d]
-    else:
-        return d
-
-def calculate_time_difference(start_date, end_date):
-    """Calculate the time difference in days."""
-    if start_date and end_date:
-        return (end_date - start_date).days
-    return None
-
-def refresh_work_items():
+def refresh_lead_cycle():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
@@ -38,8 +18,13 @@ def refresh_work_items():
     db = client[db_name]
     collection = db["lead-cycle-data"]
 
-    # Create index on System_Id to improve performance
-    collection.create_index([("System_Id", 1)], unique=True)
+    # Check if index exists before creating
+    existing_indexes = collection.list_indexes()
+    index_names = [index["name"] for index in existing_indexes]
+    
+    if "System_Id_1" not in index_names:
+        # Create index only if it doesn't already exist
+        collection.create_index([("System_Id", 1)], unique=True)
 
     # Define WIQL query to get work items
     wiql_query = {
@@ -98,12 +83,15 @@ def refresh_work_items():
                 sanitized_data["Lead_Time"] = lead_time
                 sanitized_data["Cycle_Time"] = cycle_time
 
-                # Use upsert to avoid duplicates
-                collection.update_one(
-                    {"System_Id": sanitized_data["System_Id"]},
-                    {"$set": sanitized_data},
-                    upsert=True
-                )
+                try:
+                    # Use upsert to avoid duplicates
+                    collection.update_one(
+                        {"System_Id": sanitized_data["System_Id"]},
+                        {"$set": sanitized_data},
+                        upsert=True
+                    )
+                except DuplicateKeyError:
+                    st.warning(f"Duplicate entry found for work item ID {sanitized_data['System_Id']}. Skipping...")
 
         st.success(f"Stored or updated {len(work_item_ids)} work items in MongoDB.")
     
