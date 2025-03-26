@@ -59,10 +59,10 @@ def refresh_velocity_data():
         work_item_ids = [wi.id for wi in query_results.work_items]
 
         if not work_item_ids:
-            st.warning("No User Stories found.")
+            st.warning("Data found.")
             return
 
-        st.info(f"Total User Stories found: {len(work_item_ids)}")
+        # st.info(f"Total User Stories found: {len(work_item_ids)}") # remove this later
 
         batch_size = 200
         iteration_data = {}
