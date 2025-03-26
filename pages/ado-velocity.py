@@ -86,26 +86,26 @@ else:
         # Filter the DataFrame based on the selected date range
         df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
 
-        # Create the first line chart (Done User Stories)
-        fig1 = px.line(df_filtered, x="IterationName", y="DoneUserStories", 
-                       title="Done User Stories Over Iterations", markers=True)
-        
+        # Create the second line chart (Sum Effort Done)
+        fig1 = px.line(df_filtered, x="IterationName", y="SumEffortDone", 
+                       title="Velocity (Story Points)", markers=True)
+
         # Force y-axis to start at 0 and avoid negative values
         fig1.update_layout(
-            yaxis=dict(range=[0, max(1, df_filtered["DoneUserStories"].max())], title="Number of user stories"),
+            yaxis=dict(range=[0, max(1, df_filtered["SumEffortDone"].max())], title="US Points delivered"),
             xaxis=dict(title="Sprints")
         )
 
         # Display the first chart
         st.plotly_chart(fig1, use_container_width=True)
 
-        # Create the second line chart (Sum Effort Done)
-        fig2 = px.line(df_filtered, x="IterationName", y="SumEffortDone", 
-                       title="Velocity (Story Points)", markers=True)
-
+        # Create the first line chart (Done User Stories)
+        fig2 = px.line(df_filtered, x="IterationName", y="DoneUserStories", 
+                       title="Done User Stories Over Iterations", markers=True)
+        
         # Force y-axis to start at 0 and avoid negative values
         fig2.update_layout(
-            yaxis=dict(range=[0, max(1, df_filtered["SumEffortDone"].max())], title="US Points delivered"),
+            yaxis=dict(range=[0, max(1, df_filtered["DoneUserStories"].max())], title="Number of user stories"),
             xaxis=dict(title="Sprints")
         )
 
