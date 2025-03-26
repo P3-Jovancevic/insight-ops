@@ -80,8 +80,8 @@ else:
                       title="Done User Stories Over Iterations",
                       markers=True)
         
-        # Force y-axis to start at 0
-        fig.update_yaxes(range=[0, df["DoneUserStories"].max()])
+        # Force y-axis to start at 0 and avoid negative values
+        fig.update_layout(yaxis=dict(range=[0, max(1, df["DoneUserStories"].max())]))
 
         # Display the chart
         st.plotly_chart(fig, use_container_width=True)
