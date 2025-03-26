@@ -46,21 +46,19 @@ work_items, error_message = load_work_items()
 if error_message:
     st.warning(error_message)
 else:
-    st.write(f"Total Work Items: {len(work_items)}")
+    st.write(f"Total Sprints: {len(work_items)}")
 
     # Convert to DataFrame
     df = pd.DataFrame(work_items)
 
     # Display the table
-    st.subheader("Velocity")
-    st.dataframe(df)
+    # st.subheader("Velocity") # Commented out to hide the table
+    # st.dataframe(df) # Commented out to hide the table
 
     # Ensure the necessary columns exist
     required_columns = {"IterationName", "IterationEndDate", "DoneUserStories", "SumEffortDone"}
     
     if required_columns.issubset(df.columns):
-
-        st.subheader("Done User Stories Over Iterations")
 
         # Remove rows where IterationEndDate is empty or null
         df = df[df["IterationEndDate"].notna() & (df["IterationEndDate"] != "")]
