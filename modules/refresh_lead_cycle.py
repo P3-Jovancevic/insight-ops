@@ -42,16 +42,19 @@ def refresh_lead_cycle():
         continuation_token = None
 
         while True:
-            if continuation_token:
-                query_results = wit_client.query_by_wiql(wiql_query, continuation_token=continuation_token)
+            query_results = wit_client.query_by_wiql(wiql_query, continuation_token=continuation_token)
+            
+            # Check if continuation_token exists in the response
+            if hasattr(query_results, 'continuation_token') and query_results.continuation_token:
+                continuation_token = query_results.continuation_token
             else:
-                query_results = wit_client.query_by_wiql(wiql_query)
+                continuation_token = None  # No more pages of results, so set continuation_token to None
 
             work_item_ids.extend([wi.id for wi in query_results.work_items])
 
-            if not query_results.continuation_token:
+            # If there is no continuation_token, break the loop as we've processed all pages
+            if not continuation_token:
                 break
-            continuation_token = query_results.continuation_token
 
         if not work_item_ids:
             st.warning("No Work Items found in project.")
@@ -103,3 +106,19 @@ def refresh_lead_cycle():
     except Exception as e:
         st.error(f"Error fetching or storing Work Items: {e}")
         st.error(traceback.format_exc())
+
+def calculate_time_difference(start_date, end_date):
+    from datetime import datetime
+
+    if start_date and end_date:
+        start = datetime.strptime(start_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+        end = datetime.strptime(end_date, "%Y-%m-%dT%H:%M:%S.%fZ")
+        return (end - start).total_seconds() / (60 * 60 * 24)  # Return in days
+    return None
+
+def sanitize_keys(data):
+    # Example: Remove or rename invalid characters from keys if needed
+    sanitized = {}
+    for key, value in data.items():
+        sanitized[key.replace(" ", "_")] = value
+    return sanitized
