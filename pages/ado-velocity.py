@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 from pymongo import MongoClient
 from modules.refresh_velocity_data import refresh_velocity_data
+from datetime import datetime, timedelta
 
 st.title("Azure DevOps Velocity")
 
@@ -78,8 +79,16 @@ else:
         min_date = df["IterationEndDate"].min().date()
         max_date = df["IterationEndDate"].max().date()
 
-        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=min_date)
-        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=max_date)
+        # Calculate the default date range for the last 2 months
+        end_date_default = datetime.today().date()  # Today's date
+        start_date_default = end_date_default - timedelta(days=60)  # 60 days ago (approx 2 months)
+
+        # If the calculated start date is earlier than the minimum date in the data, use the minimum date instead
+        start_date_default = max(start_date_default, min_date)
+
+        # Set the date inputs to the last 2 months as default
+        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=start_date_default)
+        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=end_date_default)
 
         # Filter the DataFrame based on the selected date range
         df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
