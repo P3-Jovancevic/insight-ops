@@ -1,17 +1,23 @@
 from azure.devops.connection import Connection
 from msrest.authentication import BasicAuthentication
 import streamlit as st
-from pymongo import MongoClient, UpdateOne
-from azure.devops.v7_0.work.models import TeamContext
-from datetime import datetime
+from pymongo import MongoClient
 import traceback
+
+def sanitize_keys(d):
+    """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
+    if isinstance(d, dict):
+        return {k.replace(".", "_").replace("$", "_"): sanitize_keys(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [sanitize_keys(i) for i in d]
+    else:
+        return d
 
 def refresh_velocity_data():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
     organization_url = 'https://dev.azure.com/p3ds/'
     project_name = "P3-Tech-Master"
-    team_name = "P3-Tech-Master Team"  # Update with the correct team name
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
 
@@ -19,38 +25,15 @@ def refresh_velocity_data():
     credentials = BasicAuthentication('', personal_access_token)
     connection = Connection(base_url=organization_url, creds=credentials)
     wit_client = connection.clients.get_work_item_tracking_client()
-    core_client = connection.clients.get_core_client()
-    team_client = connection.clients.get_work_client()
 
     # Connect to MongoDB
     client = MongoClient(mongo_uri)
     db = client[db_name]
     collection = db["velocity-data"]
 
-    # Fetch iteration details
-    iteration_dates = {}
-    try:
-        # Create TeamContext using project name and team name
-        team_context = TeamContext(project=project_name, team=team_name)
-        iterations = team_client.get_team_iterations(team_context)
-        for iteration in iterations:
-            iteration_dates[iteration.path] = {
-                "IterationStartDate": iteration.attributes.start_date if iteration.attributes.start_date else None,
-                "IterationEndDate": iteration.attributes.finish_date if iteration.attributes.finish_date else None
-            }
-    except Exception as e:
-        st.error(f"Failed to fetch iteration dates: {e}")
-        st.error(traceback.format_exc())
-        return
-
-    # Define WIQL query to get all user stories grouped by iteration
+    # Define WIQL query
     wiql_query = {
-        "query": f"""
-            SELECT [System.Id], [System.IterationPath], [System.State], [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
-            FROM WorkItems
-            WHERE [System.TeamProject] = '{project_name}'
-            AND [System.WorkItemType] = 'User Story'
-        """
+        "query": f"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{project_name}'"
     }
 
     try:
@@ -59,13 +42,12 @@ def refresh_velocity_data():
         work_item_ids = [wi.id for wi in query_results.work_items]
 
         if not work_item_ids:
-            st.warning("No User Stories found.")
+            st.warning("No Work Items found in project.")
             return
 
-        st.info(f"Total User Stories found: {len(work_item_ids)}")
+        st.info(f"Total Work Items found: {len(work_item_ids)}")
 
         batch_size = 200
-        iteration_data = {}
 
         for i in range(0, len(work_item_ids), batch_size):
             batch = work_item_ids[i:i + batch_size]
@@ -75,53 +57,18 @@ def refresh_velocity_data():
                 break
 
             for work_item in response:
-                fields = work_item.fields
-                iteration = fields.get("System.IterationPath", "Unknown").strip()
-                state = fields.get("System.State", "").lower()
-                effort = fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
-                closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
-                iteration_start = iteration_dates.get(iteration, {}).get("IterationStartDate")
-                iteration_end = iteration_dates.get(iteration, {}).get("IterationEndDate")
+                sanitized_data = sanitize_keys(work_item.fields)
+                sanitized_data["System_Id"] = work_item.id  # Ensure System.Id is available
 
-                # Convert iteration dates to datetime objects
-                if iteration_start and isinstance(iteration_start, str):
-                    iteration_start = datetime.fromisoformat(iteration_start)
-                if iteration_end and isinstance(iteration_end, str):
-                    iteration_end = datetime.fromisoformat(iteration_end)
+                # Use upsert to avoid duplicates
+                collection.update_one(
+                    {"System_Id": sanitized_data["System_Id"]},
+                    {"$set": sanitized_data},
+                    upsert=True
+                )
 
-                if iteration not in iteration_data:
-                    iteration_data[iteration] = {
-                        "IterationName": iteration,
-                        "IterationStartDate": iteration_start,
-                        "IterationEndDate": iteration_end,
-                        "TotalUserStories": 0,
-                        "DoneUserStories": 0,
-                        "SumEffortDone": 0
-                    }
-                
-                iteration_data[iteration]["TotalUserStories"] += 1
-                if state == "done" and closed_date:
-                    iteration_data[iteration]["DoneUserStories"] += 1
-                    iteration_data[iteration]["SumEffortDone"] += effort
-        
-        # Insert or update data in MongoDB using bulk_write
-        bulk_operations = [
-            UpdateOne(
-                {"IterationName": data["IterationName"]},
-                {"$set": data},
-                upsert=True
-            ) for data in iteration_data.values()
-        ]
-        
-        if bulk_operations:
-            collection.bulk_write(bulk_operations)
-        
-        st.success(f"Velocity data updated for {len(iteration_data)} iterations.")
+        st.success(f"Stored or updated {len(work_item_ids)} work items in MongoDB.")
     
     except Exception as e:
-        st.error(f"Error fetching or storing velocity data: {e}")
-        st.text(f"WIQL Query: {wiql_query}")  # Show query for debugging
+        st.error(f"Error fetching or storing Work Items: {e}")
         st.error(traceback.format_exc())
-    
-    finally:
-        client.close()  # Ensure MongoDB connection is closed
