@@ -56,23 +56,23 @@ else:
     st.dataframe(df)
 
     # Ensure the necessary columns exist
-    required_columns = {"IterationName", "IterationStartDate", "DoneUserStories"}
+    required_columns = {"IterationName", "IterationEndDate", "DoneUserStories"}
     
     if required_columns.issubset(df.columns):
-        # Remove rows where IterationStartDate is empty or null
-        df = df[df["IterationStartDate"].notna() & (df["IterationStartDate"] != "")]
+        # Remove rows where IterationEndDate is empty or null
+        df = df[df["IterationEndDate"].notna() & (df["IterationEndDate"] != "")]
 
-        # Convert IterationStartDate to datetime
-        df["IterationStartDate"] = pd.to_datetime(df["IterationStartDate"], errors="coerce")
+        # Convert IterationEndDate to datetime
+        df["IterationEndDate"] = pd.to_datetime(df["IterationEndDate"], errors="coerce")
 
         # Drop rows where the date conversion failed (e.g., invalid date formats)
-        df = df.dropna(subset=["IterationStartDate"])
+        df = df.dropna(subset=["IterationEndDate"])
 
         # Ensure DoneUserStories is non-negative
         df["DoneUserStories"] = pd.to_numeric(df["DoneUserStories"], errors="coerce").clip(lower=0)
 
-        # Sort data by IterationStartDate
-        df = df.sort_values(by="IterationStartDate")
+        # Sort data by IterationEndDate
+        df = df.sort_values(by="IterationEndDate")
 
         # Create the line chart with y-axis starting at 0
         st.subheader("Done User Stories Over Iterations")
