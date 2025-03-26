@@ -56,61 +56,19 @@ else:
     st.dataframe(df) # Commented out to hide the table
 
     # Ensure the necessary columns exist
-    required_columns = {"IterationName", "IterationEndDate", "DoneUserStories", "SumEffortDone"}
+    required_columns = {"Date", "Iteration", "CycleTime", "LeadTime"}
     
-    if required_columns.issubset(df.columns):
+    # Query MongoDB to get the lead and cycle time data
+    data = list(collection.find({"LeadTime": {"$ne": None}, "CycleTime": {"$ne": None}}))
 
-        # Remove rows where IterationEndDate is empty or null
-        df = df[df["IterationEndDate"].notna() & (df["IterationEndDate"] != "")]
+    # Convert the data to a pandas DataFrame
+    df = pd.DataFrame(data)
+    df['Date'] = pd.to_datetime(df['Date'])  # Ensure Date is in datetime format
 
-        # Convert IterationEndDate to datetime
-        df["IterationEndDate"] = pd.to_datetime(df["IterationEndDate"], errors="coerce")
+    # Plot Lead Time and Cycle Time over Time
+    fig = px.line(df, x='Date', y=['LeadTime', 'CycleTime'], 
+                title="Lead Time and Cycle Time Over Time", 
+                labels={'LeadTime': 'Lead Time (Days)', 'CycleTime': 'Cycle Time (Days)'})
 
-        # Drop rows where the date conversion failed (e.g., invalid date formats)
-        df = df.dropna(subset=["IterationEndDate"])
-
-        # Ensure DoneUserStories and SumEffortDone are non-negative
-        df["DoneUserStories"] = pd.to_numeric(df["DoneUserStories"], errors="coerce").clip(lower=0)
-        df["SumEffortDone"] = pd.to_numeric(df["SumEffortDone"], errors="coerce").clip(lower=0)
-
-        # Sort data by IterationEndDate
-        df = df.sort_values(by="IterationEndDate")
-
-        # Add a calendar date picker for filtering (start and end dates)
-        min_date = df["IterationEndDate"].min().date()
-        max_date = df["IterationEndDate"].max().date()
-
-        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=min_date)
-        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=max_date)
-
-        # Filter the DataFrame based on the selected date range
-        df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
-
-        # Create the second line chart (Sum Effort Done)
-        fig1 = px.line(df_filtered, x="IterationName", y="SumEffortDone", 
-                       title="Velocity (Story Points)", markers=True)
-
-        # Force y-axis to start at 0 and avoid negative values
-        fig1.update_layout(
-            yaxis=dict(range=[0, max(1, df_filtered["SumEffortDone"].max())], title="US Points delivered"),
-            xaxis=dict(title="Sprints")
-        )
-
-        # Display the first chart
-        st.plotly_chart(fig1, use_container_width=True)
-
-        # Create the first line chart (Done User Stories)
-        fig2 = px.line(df_filtered, x="IterationName", y="DoneUserStories", 
-                       title="Number of stories Done", markers=True)
-        
-        # Force y-axis to start at 0 and avoid negative values
-        fig2.update_layout(
-            yaxis=dict(range=[0, max(1, df_filtered["DoneUserStories"].max())], title="Number of user stories"),
-            xaxis=dict(title="Sprints")
-        )
-
-        # Display the second chart
-        st.plotly_chart(fig2, use_container_width=True)
-
-    else:
-        st.warning(f"Required fields {required_columns} are missing.")
+    # Show the plot in Streamlit
+    st.plotly_chart(fig)
