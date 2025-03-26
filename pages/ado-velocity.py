@@ -52,13 +52,16 @@ else:
     df = pd.DataFrame(work_items)
 
     # Display the table
-    st.subheader("Work Items Data Table")
+    st.subheader("Velocity")
     st.dataframe(df)
 
     # Ensure the necessary columns exist
     required_columns = {"IterationName", "IterationEndDate", "DoneUserStories", "SumEffortDone"}
     
     if required_columns.issubset(df.columns):
+
+        st.subheader("Done User Stories Over Iterations")
+
         # Remove rows where IterationEndDate is empty or null
         df = df[df["IterationEndDate"].notna() & (df["IterationEndDate"] != "")]
 
@@ -86,7 +89,6 @@ else:
         df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
 
         # Create the first line chart (Done User Stories)
-        st.subheader("Done User Stories Over Iterations")
         fig1 = px.line(df_filtered, x="IterationName", y="DoneUserStories", 
                        title="Done User Stories Over Iterations", markers=True)
         
@@ -100,9 +102,8 @@ else:
         st.plotly_chart(fig1, use_container_width=True)
 
         # Create the second line chart (Sum Effort Done)
-        st.subheader("US Points Delivered Over Iterations")
         fig2 = px.line(df_filtered, x="IterationName", y="SumEffortDone", 
-                       title="US Points Delivered Over Iterations", markers=True)
+                       title="Velocity (Story Points)", markers=True)
 
         # Force y-axis to start at 0 and avoid negative values
         fig2.update_layout(
