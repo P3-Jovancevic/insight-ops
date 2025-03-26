@@ -65,10 +65,19 @@ else:
     df = pd.DataFrame(data)
     df['Date'] = pd.to_datetime(df['Date'])  # Ensure Date is in datetime format
 
-    # Plot Lead Time and Cycle Time over Time
-    fig = px.line(df, x='Date', y=['LeadTime', 'CycleTime'], 
-                title="Lead Time and Cycle Time Over Time", 
-                labels={'LeadTime': 'Lead Time (Days)', 'CycleTime': 'Cycle Time (Days)'})
+    # Sort data by Date
+    df = df.sort_values(by='Date')
 
-    # Show the plot in Streamlit
-    st.plotly_chart(fig)
+    # Plot Lead Time
+    fig_lead_time = px.line(df, x='Date', y='LeadTime', 
+                            title="Lead Time Over Time", 
+                            labels={'LeadTime': 'Lead Time (Days)'})
+
+    # Plot Cycle Time
+    fig_cycle_time = px.line(df, x='Date', y='CycleTime', 
+                            title="Cycle Time Over Time", 
+                            labels={'CycleTime': 'Cycle Time (Days)'})
+
+    # Display the charts in Streamlit
+    st.plotly_chart(fig_lead_time)
+    st.plotly_chart(fig_cycle_time)
