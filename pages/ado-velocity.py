@@ -86,7 +86,7 @@ else:
         # If the calculated start date is earlier than the minimum date in the data, use the minimum date instead
         start_date_default = max(start_date_default, min_date)
 
-        # Set the date inputs to the last 2 months as default
+        # Set the date inputs to the last 2 months as default (convert datetime to date)
         start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=start_date_default)
         end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=end_date_default)
 
