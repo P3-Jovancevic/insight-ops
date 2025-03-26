@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from pymongo import MongoClient
 from modules.refresh_velocity_data import refresh_velocity_data
 
@@ -25,7 +26,7 @@ if st.button("↻ Refresh"):
         try:
             refresh_velocity_data()  # Fetch and store data in MongoDB
             st.success("Velocity data refreshed successfully!")
-            st.rerun()  # Reload page after refresh
+            st.rerun()
         except Exception as e:
             st.error(f"Failed to refresh velocity data: {e}")
 
@@ -47,15 +48,24 @@ if error_message:
 else:
     st.write(f"Total Work Items: {len(work_items)}")
 
-    # Convert to DataFrame and handle nested structures
-    if isinstance(work_items, list) and all(isinstance(i, dict) for i in work_items):
-        df = pd.DataFrame(work_items)
-        
-        # Convert any list or dict columns into JSON strings for better display
-        for col in df.columns:
-            if df[col].apply(lambda x: isinstance(x, (list, dict))).any():
-                df[col] = df[col].apply(lambda x: str(x))  # Convert to string format
-        
-        st.dataframe(df)
+    # Convert to DataFrame
+    df = pd.DataFrame(work_items)
+
+    # Ensure the necessary columns exist
+    if {"IterationName", "IterationStartDate", "DoneUserStories"}.issubset(df.columns):
+        # Convert IterationStartDate to datetime
+        df["IterationStartDate"] = pd.to_datetime(df["IterationStartDate"])
+
+        # Sort data by IterationStartDate
+        df = df.sort_values(by="IterationStartDate")
+
+        # Create the line chart
+        fig = px.line(df, x="IterationName", y="DoneUserStories", 
+                      title="Done User Stories Over Iterations",
+                      markers=True)
+
+        # Display the chart
+        st.plotly_chart(fig, use_container_width=True)
+
     else:
-        st.json(work_items)  # Fallback to JSON display
+        st.warning("Required fields (IterationName, IterationStartDate, DoneUserStories) are missing.")
