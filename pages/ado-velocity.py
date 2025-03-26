@@ -76,15 +76,15 @@ else:
         df = df.sort_values(by="IterationEndDate")
 
         # Set default start date to 60 days ago and end date to today
-        start_date_default = datetime.today() - timedelta(days=60)
-        end_date_default = datetime.today()
+        start_date_default = (datetime.today() - timedelta(days=60)).date()
+        end_date_default = datetime.today().date()
 
         # Add a calendar date picker for filtering (start and end dates)
         min_date = df["IterationEndDate"].min().date()
         max_date = df["IterationEndDate"].max().date()
 
-        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=start_date_default.date())
-        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=end_date_default.date())
+        start_date = st.date_input("Select start date", min_value=min_date, max_value=max_date, value=start_date_default)
+        end_date = st.date_input("Select end date", min_value=min_date, max_value=max_date, value=end_date_default)
 
         # Filter the DataFrame based on the selected date range
         df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
