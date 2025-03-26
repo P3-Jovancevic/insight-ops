@@ -74,14 +74,29 @@ else:
         # Sort data by IterationEndDate
         df = df.sort_values(by="IterationEndDate")
 
+        # Add a date range picker for filtering
+        min_date = df["IterationEndDate"].min().date()
+        max_date = df["IterationEndDate"].max().date()
+
+        start_date, end_date = st.slider(
+            "Select date range",
+            min_value=min_date,
+            max_value=max_date,
+            value=(min_date, max_date),
+            format="YYYY-MM-DD"
+        )
+
+        # Filter the DataFrame based on the selected date range
+        df_filtered = df[(df["IterationEndDate"].dt.date >= start_date) & (df["IterationEndDate"].dt.date <= end_date)]
+
         # Create the line chart with y-axis starting at 0
         st.subheader("Done User Stories Over Iterations")
-        fig = px.line(df, x="IterationName", y="DoneUserStories", 
+        fig = px.line(df_filtered, x="IterationName", y="DoneUserStories", 
                       title="Done User Stories Over Iterations",
                       markers=True)
         
         # Force y-axis to start at 0 and avoid negative values
-        fig.update_layout(yaxis=dict(range=[0, max(1, df["DoneUserStories"].max())]))
+        fig.update_layout(yaxis=dict(range=[0, max(1, df_filtered["DoneUserStories"].max())]))
 
         # Display the chart
         st.plotly_chart(fig, use_container_width=True)
