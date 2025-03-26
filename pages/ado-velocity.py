@@ -56,9 +56,17 @@ else:
     st.dataframe(df)
 
     # Ensure the necessary columns exist
-    if {"IterationName", "IterationStartDate", "DoneUserStories"}.issubset(df.columns):
+    required_columns = {"IterationName", "IterationStartDate", "DoneUserStories"}
+    
+    if required_columns.issubset(df.columns):
+        # Remove rows where IterationStartDate is empty or null
+        df = df[df["IterationStartDate"].notna() & (df["IterationStartDate"] != "")]
+
         # Convert IterationStartDate to datetime
-        df["IterationStartDate"] = pd.to_datetime(df["IterationStartDate"])
+        df["IterationStartDate"] = pd.to_datetime(df["IterationStartDate"], errors="coerce")
+
+        # Drop rows where the date conversion failed (e.g., invalid date formats)
+        df = df.dropna(subset=["IterationStartDate"])
 
         # Sort data by IterationStartDate
         df = df.sort_values(by="IterationStartDate")
@@ -73,4 +81,4 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
     else:
-        st.warning("Required fields (IterationName, IterationStartDate, DoneUserStories) are missing.")
+        st.warning(f"Required fields {required_columns} are missing.")
