@@ -91,7 +91,10 @@ else:
                       markers=True)
         
         # Force y-axis to start at 0 and avoid negative values
-        fig.update_layout(yaxis=dict(range=[0, max(1, df_filtered["DoneUserStories"].max())]))
+        fig.update_layout(
+            yaxis=dict(range=[0, max(1, df_filtered["DoneUserStories"].max())], title="Number of user stories"),
+            xaxis=dict(title="Sprints")
+        )
 
         # Display the chart
         st.plotly_chart(fig, use_container_width=True)
