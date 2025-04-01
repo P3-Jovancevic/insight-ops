@@ -99,7 +99,7 @@ else:
                         "email": new_email,
                         "password": hashed_password.decode('utf-8'),
                         "verified": False,
-                        "verification_token": verification_token
+                        "verification_token": verification_token,
                         "organization_url": "",
                         "project_name": "",
                         "pat": ""
