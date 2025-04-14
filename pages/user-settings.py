@@ -33,6 +33,10 @@ if st.session_state["logged_in"]:
         project_name = st.text_input("Project Name", user_doc.get("project_name", ""))
         pat = st.text_input("Personal Access Token (PAT)", user_doc.get("pat", ""), type="password")
 
+        # Show warning if any of the important fields are blank
+        if not org_url or not project_name or not pat:
+            st.warning("You need the Organization URL, your Project Name, and the PAT (Personal Access Token) in order to use InsightOps.")
+
         if st.button("Update Profile"):
             update_result = users_collection.update_one(
                 {"email": user_email.lower()},
