@@ -25,13 +25,30 @@ if st.session_state["logged_in"]:
     user_doc = users_collection.find_one({"email": user_email.lower()})
 
     if user_doc:
-        st.markdown("### User Profile")
-        st.text(f"Username: {user_doc.get('username', 'N/A')}")
-        st.text(f"Email: {user_doc.get('email', 'N/A')}")
-        st.text(f"Verified: {'✅' if user_doc.get('verified') else '❌'}")
-        st.text(f"Organization URL: {user_doc.get('organization_url', 'Not set')}")
-        st.text(f"Project Name: {user_doc.get('project_name', 'Not set')}")
-        st.text(f"PAT: {'Set' if user_doc.get('pat') else 'Not set'}")
+        st.markdown("### Edit Your Profile")
+
+        # Editable fields
+        org_url = st.text_input("Organization URL", user_doc.get("organization_url", ""))
+        project_name = st.text_input("Project Name", user_doc.get("project_name", ""))
+        pat = st.text_input("Personal Access Token (PAT)", user_doc.get("pat", ""), type="password")
+
+        if st.button("Update Profile"):
+            update_result = users_collection.update_one(
+                {"email": user_email.lower()},
+                {
+                    "$set": {
+                        "organization_url": org_url,
+                        "project_name": project_name,
+                        "pat": pat
+                    }
+                }
+            )
+            if update_result.modified_count > 0:
+                st.success("Profile updated successfully!")
+                st.rerun()
+            else:
+                st.info("No changes were made.")
+
     else:
         st.error("User not found in the database.")
 
