@@ -2,6 +2,7 @@ import streamlit as st
 import bcrypt
 import re
 from pymongo import MongoClient
+import secrets
 
 MONGODB_URI = st.secrets["mongo"]["uri"]
 DATABASE_NAME = "insightops"
