@@ -3,10 +3,12 @@ import bcrypt
 import re
 from pymongo import MongoClient
 
-# MongoDB connection (replace with your actual connection details)
-client = MongoClient("your_mongo_connection_string")
-db = client["your_database_name"]
-users_collection = db["users"]
+MONGODB_URI = st.secrets["mongo"]["uri"]
+DATABASE_NAME = "insightops"
+COLLECTION_NAME = "users"
+client = pymongo.MongoClient(MONGODB_URI)
+db = client[DATABASE_NAME]
+users_collection = db[COLLECTION_NAME]
 
 # Check if user is logged in
 if "user_email" not in st.session_state:
