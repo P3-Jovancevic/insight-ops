@@ -24,7 +24,7 @@ if "logged_in" not in st.session_state:
     st.session_state["user_email"] = None
 
 if st.session_state["logged_in"]:
-    st.subheader("You are currently logged in")
+    st.subheader(f"User {st.session_state['user_email']} is logged in")
     if st.button("Sign out"):
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
