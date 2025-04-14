@@ -1,5 +1,6 @@
 import streamlit as st
 import pymongo
+import bcrypt
 from pymongo import MongoClient
 import secrets
 
@@ -37,7 +38,7 @@ if st.session_state["logged_in"]:
         if not org_url or not project_name or not pat:
             st.warning("You need the Organization URL, your Project Name, and the PAT (Personal Access Token) in order to use InsightOps.")
 
-        if st.button("Update Profile"):
+        if st.button("Update project info"):
             update_result = users_collection.update_one(
                 {"email": user_email.lower()},
                 {
@@ -54,16 +55,50 @@ if st.session_state["logged_in"]:
                 st.rerun()
             else:
                 st.info("No changes were made.")
+        
+        # Divider line at the bottom
+        st.markdown("---")
 
+        if st.button("Update user"):
+            update_result = users_collection.update_one(
+                {"email": user_email.lower()},
+                {
+                    "$set": {
+                        "username": username
+                    }
+                }
+            )
+            if update_result.modified_count > 0:
+                st.success("Profile updated successfully!")
+                st.rerun()
+            else:
+                st.info("No changes were made.")
+
+        st.markdown("---")
+
+        with st.form("reset_password_form"):
+            new_password = st.text_input("New password", type="password")
+            confirm_password = st.text_input("Confirm new password", type="password")
+            submit_button = st.form_submit_button("Reset Password")
+        
+        if submit_button:
+            if not new_password or not confirm_password:
+                st.error("All fields are required!")
+            elif new_password != confirm_password:
+                st.warning("Passwords do not match!")
+            else:
+                # Hash new password
+                hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                
+                # Update user password in DB and remove verification token
+                users_collection.update_one(
+                    {"email": user_email.lower()},
+                    {"$set": {"password": hashed_password}, "$unset": {"verification_token": ""}}
+                )
+                
+                st.success("Password successfully changed!")
     else:
-        st.error("User not found in the database.")
-
-    if st.button("Sign out"):
-        st.session_state["logged_in"] = False
-        st.session_state["user_email"] = None
-        st.rerun()
-
-# Not authenticated
+        st.error("User not found in the database.")            
 else:
     st.error("You are not logged in. Go to login page.")
     st.stop()
