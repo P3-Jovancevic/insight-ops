@@ -8,14 +8,15 @@ from cryptography.fernet import Fernet
 
 # MongoDB connection setup
 MONGODB_URI = st.secrets["mongo"]["uri"]
-FERNET_KEY = st.secrets["encryption"]["fernet_key"]
-fernet = Fernet(FERNET_KEY.encode())
-
 DATABASE_NAME = "insightops"
 COLLECTION_NAME = "users"
 client = pymongo.MongoClient(MONGODB_URI)
 db = client[DATABASE_NAME]
 users_collection = db[COLLECTION_NAME]
+
+# Encription for PAT
+FERNET_KEY = st.secrets["encryption"]["fernet_key"]
+fernet = Fernet(FERNET_KEY.encode())
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
