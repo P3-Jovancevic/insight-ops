@@ -36,15 +36,7 @@ if not user_doc:
 st.subheader(f"User {user_email} is logged in")
 st.markdown("### Edit Your Profile")
 
-def validate_pat(org_url, project, pat):
-    """Try to access the Azure DevOps Projects API to validate PAT and access."""
-    try:
-        org = org_url.rstrip("/").split("/")[-1]
-        url = f"https://dev.azure.com/{org}/{project}/_apis/projects?api-version=6.0"
-        response = requests.get(url, auth=HTTPBasicAuth("", pat))
-        return response.status_code == 200
-    except Exception:
-        return False
+## Consider adding PAT validation on this page
 
 def decrypt_pat(encrypted_pat):
     try:
@@ -72,12 +64,7 @@ if submit_button:
     if not org_url or not project_name or not pat:
         st.warning("You need to provide the Organization URL, Project Name, and PAT.")
     else:
-        # Validate PAT
-        with st.spinner("Validating Azure DevOps PAT..."):
-            if not validate_pat(org_url, project_name, pat):
-                st.error("PAT validation failed. Check your Org URL, Project, and PAT.")
-                st.stop()
-
+           
         updates = {}
         if org_url != user_doc.get("organization_url", ""):
             updates["organization_url"] = org_url
