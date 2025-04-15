@@ -4,6 +4,7 @@ import bcrypt
 import requests
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
+import secrets
 
 # MongoDB connection setup
 MONGODB_URI = st.secrets["mongo"]["uri"]

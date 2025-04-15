@@ -4,6 +4,7 @@ from pymongo import MongoClient
 import bcrypt
 import re
 import secrets
+from datetime import datetime
 from modules.send_verification_email import send_verification_email
 
 # Connect to MongoDB Atlas
@@ -102,7 +103,9 @@ else:
                         "verification_token": verification_token,
                         "organization_url": "",
                         "project_name": "",
-                        "pat": ""
+                        "pat": "",
+                        "updated_at": "",
+                        "created_at": datetime.utcnow()
                     })
                     
                     # Send verification email
