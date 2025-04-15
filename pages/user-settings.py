@@ -108,8 +108,6 @@ with st.expander("🔒 Reset Password"):
             st.success("Password successfully changed!")
             st.rerun()
 
-st.markdown("---")
-
 with st.expander("⚠️ Delete Account"):
     st.error("This action is irreversible.")
     confirm_email = st.text_input("Type your email to confirm account deletion")
@@ -123,8 +121,6 @@ with st.expander("⚠️ Delete Account"):
             st.rerun()
         else:
             st.warning("Confirmation email does not match. Account not deleted.")
-
-st.markdown("---")
 
 if st.button("Log out"):
     st.session_state["logged_in"] = False
