@@ -83,8 +83,6 @@ if submit_button:
         else:
             st.info("No changes were made.")
 
-st.markdown("---")
-
 with st.expander("🔒 Reset Password"):
     with st.form("reset_password_form"):
         new_password = st.text_input("New password", type="password")
