@@ -4,10 +4,13 @@ import bcrypt
 import requests
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
-import secrets
+from cryptography.fernet import Fernet
 
 # MongoDB connection setup
 MONGODB_URI = st.secrets["mongo"]["uri"]
+FERNET_KEY = st.secrets["encryption"]["fernet_key"]
+fernet = Fernet(FERNET_KEY.encode())
+
 DATABASE_NAME = "insightops"
 COLLECTION_NAME = "users"
 client = pymongo.MongoClient(MONGODB_URI)
@@ -24,7 +27,6 @@ if not st.session_state["logged_in"]:
 
 user_email = st.session_state["user_email"]
 user_query = {"email": user_email.lower()}
-
 user_doc = users_collection.find_one(user_query)
 
 if not user_doc:
@@ -41,15 +43,27 @@ def validate_pat(org_url, project, pat):
         url = f"https://dev.azure.com/{org}/{project}/_apis/projects?api-version=6.0"
         response = requests.get(url, auth=HTTPBasicAuth("", pat))
         return response.status_code == 200
-    except Exception as e:
+    except Exception:
         return False
+
+def decrypt_pat(encrypted_pat):
+    try:
+        return fernet.decrypt(encrypted_pat.encode()).decode()
+    except Exception:
+        return ""
+
+def encrypt_pat(raw_pat):
+    return fernet.encrypt(raw_pat.encode()).decode()
 
 with st.form("update_profile_form"):
     org_url = st.text_input("Organization URL", user_doc.get("organization_url", ""))
     project_name = st.text_input("Project Name", user_doc.get("project_name", ""))
-    
+
+    stored_pat_encrypted = user_doc.get("pat", "")
+    stored_pat = decrypt_pat(stored_pat_encrypted) if stored_pat_encrypted else ""
+
     with st.expander("🔐 Update Personal Access Token (PAT)"):
-        pat = st.text_input("Personal Access Token", user_doc.get("pat", ""), type="password")
+        pat = st.text_input("Personal Access Token", stored_pat, type="password")
 
     username = st.text_input("Username", user_doc.get("username", ""))
     submit_button = st.form_submit_button("Save Changes")
@@ -69,8 +83,8 @@ if submit_button:
             updates["organization_url"] = org_url
         if project_name != user_doc.get("project_name", ""):
             updates["project_name"] = project_name
-        if pat != user_doc.get("pat", ""):
-            updates["pat"] = pat
+        if pat != stored_pat:
+            updates["pat"] = encrypt_pat(pat)
         if username != user_doc.get("username", ""):
             updates["username"] = username
 

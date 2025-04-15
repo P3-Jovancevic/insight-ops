@@ -6,3 +6,4 @@ email-validator
 azure-devops
 msrest
 plotly
+cryptography
