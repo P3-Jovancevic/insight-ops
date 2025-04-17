@@ -16,8 +16,8 @@ def sanitize_keys(d):
 def refresh_work_items():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
-    organization_url = 'https://dev.azure.com/p3ds/'
-    project_name = "P3-Tech-Master"
+    organization_url = 'https://dev.azure.com/gyra'
+    project_name = "Antares"
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
 
