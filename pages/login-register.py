@@ -65,51 +65,61 @@ else:
             new_email = st.text_input("Email")
             new_password = st.text_input("Choose a Password", type="password", key="new_password")
             confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password")
-        
-            # Real-time password match check
-            if new_password and confirm_password and new_password != confirm_password:
-                st.warning("Passwords do not match!")
-        
-            # Email validation
-            email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-            if new_email and not re.match(email_pattern, new_email):
-                st.error("Invalid email format! Please enter a valid email address.")
-        
-            # Submit form
+            
             submit_button = st.form_submit_button("Register")
         
         if submit_button:
-            # Ensure all fields are filled
+            errors = []
+
+            # Normalize inputs
+            new_email = new_email.strip().lower()
+
+            # Validate fields
             if not new_username or not new_email or not new_password or not confirm_password:
-                st.error("All fields are required!")
+                errors.append("All fields are required.")
+
+            # Email format check
+            email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+            if new_email and not re.match(email_pattern, new_email):
+                errors.append("Invalid email format.")
+
+            # Password match
+            if new_password != confirm_password:
+                errors.append("Passwords do not match.")
+
+            # Uniqueness checks
+            if users_collection.find_one({"email": new_email}):
+                errors.append("This email is already registered.")
+            elif users_collection.find_one({"username": new_username}):
+                errors.append("This username is already taken.")
+
+            # Show errors or proceed
+            if errors:
+                for error in errors:
+                    st.error(error)
             else:
-                if users_collection.find_one({"email": new_email}):
-                    st.error("This email is already registered!")
-                elif users_collection.find_one({"username": new_username}):
-                    st.error("This username is already taken!")
-                else:
-                    # Hash the password
-                    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
-                    
-                    # Generate verification token
-                    verification_token = secrets.token_urlsafe(32)
-                    
-                    # Insert new user into database
-                    users_collection.insert_one({
-                        "username": new_username,
-                        "email": new_email,
-                        "password": hashed_password.decode('utf-8'),
-                        "verified": False,
-                        "verification_token": verification_token,
-                        "organization_url": "",
-                        "project_name": "",
-                        "pat": "",
-                        "updated_at": "",
-                        "created_at": datetime.utcnow()
-                    })
-                    
-                    # Send verification email
-                    verification_link = f"{st.secrets['app']['base_url']}/verify?token={verification_token}"
-                    send_verification_email(new_email, verification_token)
-                    
-                    st.success("Registration successful! A verification email has been sent.")
+                # Hash the password
+                hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+
+                # Generate verification token
+                verification_token = secrets.token_urlsafe(32)
+
+                # Insert new user into database
+                users_collection.insert_one({
+                    "username": new_username,
+                    "email": new_email,
+                    "password": hashed_password.decode('utf-8'),
+                    "verified": False,
+                    "verification_token": verification_token,
+                    "organization_url": "",
+                    "project_name": "",
+                    "pat": "",
+                    "updated_at": datetime.utcnow(),
+                    "created_at": datetime.utcnow()
+                })
+
+                # Send verification email
+                verification_link = f"{st.secrets['app']['base_url']}/verify?token={verification_token}"
+                send_verification_email(new_email, verification_token)
+
+                st.success("Registration successful! A verification email has been sent.")
