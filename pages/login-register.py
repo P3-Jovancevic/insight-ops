@@ -76,7 +76,7 @@ else:
 
             # Display inline feedback
             if new_password and confirm_password and not passwords_match:
-                st.warning("Passwords do not match!")
+                st.warning("⚠️ Passwords do not match!")
             if new_email and not email_valid:
                 st.error("Invalid email format! Please enter a valid email address.")
 
