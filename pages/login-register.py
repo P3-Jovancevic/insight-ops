@@ -11,7 +11,7 @@ from modules.send_verification_email import send_verification_email
 MONGODB_URI = st.secrets["mongo"]["uri"]
 DATABASE_NAME = "insightops"
 COLLECTION_NAME = "users"
-client = pymongo.MongoClient(MONGODB_URI)
+client = MongoClient(MONGODB_URI)
 db = client[DATABASE_NAME]
 users_collection = db[COLLECTION_NAME]
 
@@ -65,51 +65,55 @@ else:
             new_email = st.text_input("Email")
             new_password = st.text_input("Choose a Password", type="password", key="new_password")
             confirm_password = st.text_input("Confirm Password", type="password", key="confirm_password")
-        
-            # Real-time password match check
-            if new_password and confirm_password and new_password != confirm_password:
-                st.warning("Passwords do not match!")
-        
+
             # Email validation
             email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-            if new_email and not re.match(email_pattern, new_email):
+            email_valid = bool(new_email and re.match(email_pattern, new_email))
+
+            # Check fields and password match
+            all_fields_filled = all([new_username, new_email, new_password, confirm_password])
+            passwords_match = new_password == confirm_password and new_password != ""
+
+            # Display inline feedback
+            if new_password and confirm_password and not passwords_match:
+                st.warning("Passwords do not match!")
+            if new_email and not email_valid:
                 st.error("Invalid email format! Please enter a valid email address.")
-        
-            # Submit form
-            submit_button = st.form_submit_button("Register")
-        
+
+            # Determine if form is valid
+            is_form_valid = all_fields_filled and email_valid and passwords_match
+
+            # Submit button only enabled if form is valid
+            submit_button = st.form_submit_button("Register", disabled=not is_form_valid)
+
         if submit_button:
-            # Ensure all fields are filled
-            if not new_username or not new_email or not new_password or not confirm_password:
-                st.error("All fields are required!")
+            if users_collection.find_one({"email": new_email}):
+                st.error("This email is already registered!")
+            elif users_collection.find_one({"username": new_username}):
+                st.error("This username is already taken!")
             else:
-                if users_collection.find_one({"email": new_email}):
-                    st.error("This email is already registered!")
-                elif users_collection.find_one({"username": new_username}):
-                    st.error("This username is already taken!")
-                else:
-                    # Hash the password
-                    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
-                    
-                    # Generate verification token
-                    verification_token = secrets.token_urlsafe(32)
-                    
-                    # Insert new user into database
-                    users_collection.insert_one({
-                        "username": new_username,
-                        "email": new_email,
-                        "password": hashed_password.decode('utf-8'),
-                        "verified": False,
-                        "verification_token": verification_token,
-                        "organization_url": "",
-                        "project_name": "",
-                        "pat": "",
-                        "updated_at": "",
-                        "created_at": datetime.utcnow()
-                    })
-                    
-                    # Send verification email
-                    verification_link = f"{st.secrets['app']['base_url']}/verify?token={verification_token}"
-                    send_verification_email(new_email, verification_token)
-                    
-                    st.success("Registration successful! A verification email has been sent.")
+                # Hash the password
+                hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+
+                # Generate verification token
+                verification_token = secrets.token_urlsafe(32)
+
+                # Insert new user into database
+                users_collection.insert_one({
+                    "username": new_username,
+                    "email": new_email,
+                    "password": hashed_password.decode('utf-8'),
+                    "verified": False,
+                    "verification_token": verification_token,
+                    "organization_url": "",
+                    "project_name": "",
+                    "pat": "",
+                    "updated_at": "",
+                    "created_at": datetime.utcnow()
+                })
+
+                # Send verification email
+                verification_link = f"{st.secrets['app']['base_url']}/verify?token={verification_token}"
+                send_verification_email(new_email, verification_token)
+
+                st.success("Registration successful! A verification email has been sent.")
