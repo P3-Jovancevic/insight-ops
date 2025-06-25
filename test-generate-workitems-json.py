@@ -3,7 +3,7 @@ from msrest.authentication import BasicAuthentication
 import json
 
 # Fill in with your personal access token and org URL
-personal_access_token = '8GVUhWRIylouMfcXKvTt4porJQRRhirPHGYs6qDJqSOrZdJfeC50JQQJ99BCACAAAAAs05tvAAASAZDO3QES'  # Replace with a secure method
+personal_access_token = '-'  # Replace with a secure method
 organization_url = 'https://dev.azure.com/p3ds/'
 project_name = "P3-Tech-Master"  # Your Azure DevOps project name
 
