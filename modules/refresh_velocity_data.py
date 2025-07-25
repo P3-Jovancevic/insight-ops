@@ -9,9 +9,9 @@ import traceback
 def refresh_velocity_data():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
-    organization_url = 'https://dev.azure.com/p3ds/'
-    project_name = "P3-Tech-Master"
-    team_name = "P3-Tech-Master Team"  # Update with the correct team name
+    organization_url = st.secrets["ado"]["ado_site"]
+    project_name = st.secrets["ado"]["ado_project"]
+    team_name = st.secrets["ado"]["ado_team"]  # Update with the correct team name
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
 
