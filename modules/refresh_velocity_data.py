@@ -92,6 +92,7 @@ def refresh_velocity_data():
                 for work_item in response:
                     fields = work_item.fields
                     iteration = fields.get("System.IterationPath", "Unknown").strip()
+                    state = fields.get("System.State", "").lower()
                     effort = fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
                     closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate", None)
 
@@ -106,7 +107,8 @@ def refresh_velocity_data():
                         iteration_data[iteration]["TotalUserStories"] += 1
                         iteration_data[iteration]["SumEffort"] += effort
 
-                        if closed_date and iteration_end and closed_date <= iteration_end:
+                        # Count as done only if state is "Done" AND ClosedDate <= IterationEndDate
+                        if state == "done" and closed_date and iteration_end and closed_date <= iteration_end:
                             iteration_data[iteration]["DoneUserStories"] += 1
                             iteration_data[iteration]["SumEffortDone"] += effort
 
