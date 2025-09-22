@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from pymongo import MongoClient
 from modules.refresh_velocity_data import refresh_velocity_data
 
@@ -46,5 +47,25 @@ if error_message:
     st.warning(error_message)
 else:
     st.write(f"Total Sprints: {len(work_items)}")
-    # Convert to DataFrame if you need it for other purposes
+    
+    # Convert to DataFrame
     df = pd.DataFrame(work_items)
+    
+    # Ensure necessary columns exist
+    if {"IterationName", "SumEffort"}.issubset(df.columns):
+        # Convert SumEffort to numeric (non-negative)
+        df["SumEffort"] = pd.to_numeric(df["SumEffort"], errors="coerce").clip(lower=0)
+        
+        # Sort by IterationName for proper x-axis order
+        df = df.sort_values(by="IterationName")
+        
+        # Create line chart
+        fig = px.line(df, x="IterationName", y="SumEffort", markers=True,
+                      title="Sum Effort per Iteration")
+        fig.update_layout(
+            yaxis=dict(range=[0, max(1, df["SumEffort"].max())], title="Sum Effort"),
+            xaxis=dict(title="Iteration Name")
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Required fields 'IterationName' and 'SumEffort' are missing in the data.")
