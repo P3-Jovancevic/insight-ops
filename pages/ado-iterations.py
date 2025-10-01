@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 from pymongo import MongoClient
-from modules.iteration-info import get_iterations
-from modules.iteration-info import get_work_items_for_iteration
-from modules.iteration-info import refresh_iterations
+from modules.iteration_info import get_iterations
+from modules.iteration_info import get_work_items_for_iteration
+from modules.iteration_info import refresh_iterations
 
 st.title("Azure DevOps Iterations")
 
