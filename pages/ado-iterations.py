@@ -17,12 +17,9 @@ client = MongoClient(mongo_uri)
 db = client[db_name]
 collection = db[collection_name]
 
-# Button to refresh work items
-if st.button("↻ Refresh"):
-    get_iterations()  # Fetch and store data directly in MongoDB
-    get_work_items_for_iteration()  # Fetch and store data directly in MongoDB
-    refresh_iterations()  # Fetch and store data directly in MongoDB
-    st.success("Work items refreshed successfully!")
+if st.button("↻ Refresh Iterations"):
+    refresh_iterations()  # handles fetching iterations + work items + storing/updating Mongo
+    st.success("Iteration data refreshed successfully!")
     st.rerun()
 
 # Load and display work items from MongoDB
