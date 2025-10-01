@@ -18,7 +18,7 @@ personal_access_token = st.secrets["ado"]["ado_pat"]
 
 mongo_uri = st.secrets["mongo"]["uri"]
 db_name = st.secrets["mongo"]["db_name"]
-collection_name = "Iteration-data"
+collection_name = "iteration-data"
 
 # --------------------------------------------------------
 # Mongo connection
