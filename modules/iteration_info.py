@@ -12,9 +12,11 @@ import base64
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Load secrets from Streamlit
-org_url = st.secrets["ado"]["organization_url"]
-project = st.secrets["ado"]["project_name"]
 personal_access_token = st.secrets["ado"]["ado_pat"]
+organization_url = st.secrets["ado"]["ado_site"]
+project_name = st.secrets["ado"]["ado_project"]
+mongo_uri = st.secrets["mongo"]["uri"]
+db_name = st.secrets["mongo"]["db_name"]
 
 mongo_uri = st.secrets["mongo"]["uri"]
 db_name = st.secrets["mongo"]["db_name"]
@@ -43,7 +45,7 @@ headers = {
 
 def get_iterations():
     """Get all iterations for the project."""
-    url = f"{org_url}/{project}/_apis/work/teamsettings/iterations?api-version=7.0"
+    url = f"{organization_url}/{project_name}/_apis/work/teamsettings/iterations?api-version=7.0"
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json().get("value", [])
@@ -56,12 +58,12 @@ def get_work_items_for_iteration(iteration_path):
         SELECT [System.Id], [System.WorkItemType], [System.State], 
                [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
         FROM WorkItems
-        WHERE [System.TeamProject] = '{project}'
+        WHERE [System.TeamProject] = '{project_name}'
         AND [System.IterationPath] = '{iteration_path}'
         """
     }
 
-    url = f"{org_url}/{project}/_apis/wit/wiql?api-version=7.0"
+    url = f"{organization_url}/{project_name}/_apis/wit/wiql?api-version=7.0"
     response = requests.post(url, headers=headers, json=wiql)
     response.raise_for_status()
     work_items = response.json().get("workItems", [])
@@ -71,7 +73,7 @@ def get_work_items_for_iteration(iteration_path):
 
     # Batch get work item details
     ids = ",".join(str(wi["id"]) for wi in work_items)
-    url = f"{org_url}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,System.IterationPath,Microsoft.VSTS.Scheduling.Effort,Microsoft.VSTS.Common.ClosedDate&api-version=7.0"
+    url = f"{organization_url}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,System.IterationPath,Microsoft.VSTS.Scheduling.Effort,Microsoft.VSTS.Common.ClosedDate&api-version=7.0"
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json().get("value", [])
