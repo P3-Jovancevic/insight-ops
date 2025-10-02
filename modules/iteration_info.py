@@ -51,7 +51,7 @@ def get_iterations():
     return response.json().get("value", [])
 
 
-def get_work_items_for_iteration(iteration_id):
+def get_work_items_for_iteration(iteration_name):
     """Get all work items for a given iteration id using WIQL + batch API."""
     wiql = {
         "query": f"""
@@ -59,7 +59,7 @@ def get_work_items_for_iteration(iteration_id):
                [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
         FROM WorkItems
         WHERE [System.TeamProject] = '{project_name}'
-        AND [System.IterationId] = '{iteration_id}'
+        AND [System.IterationId] = '{iteration_name}'
         """
     }
 
@@ -130,7 +130,6 @@ def refresh_iterations():
 
             # Prepare iteration document
             iteration_doc = {
-                "IterationId": iteration_id,
                 "IterationName": iteration_name,
                 "IterationStartDate": start_date,
                 "IterationEndDate": end_date,
@@ -142,7 +141,7 @@ def refresh_iterations():
 
             # Upsert into MongoDB (no duplicates by IterationName)
             collection.update_one(
-                {"IterationId": iteration_id},
+                {"IterationId": iteration_name},
                 {"$set": iteration_doc},
                 upsert=True
             )
