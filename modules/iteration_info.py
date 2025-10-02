@@ -1,154 +1,87 @@
-import os
-import requests
-from pymongo import MongoClient
+from azure.devops.connection import Connection
+from msrest.authentication import BasicAuthentication
 import streamlit as st
-from datetime import datetime
-import logging
-import base64
+from pymongo import MongoClient, ASCENDING
+import traceback
 
-# --------------------------------------------------------
-# Setup logging (this will log to Streamlit console or server logs)
-# --------------------------------------------------------
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# Load secrets from Streamlit
-personal_access_token = st.secrets["ado"]["ado_pat"]
-organization_url = st.secrets["ado"]["ado_site"]
-project_name = st.secrets["ado"]["ado_project"]
-mongo_uri = st.secrets["mongo"]["uri"]
-db_name = st.secrets["mongo"]["db_name"]
-
-mongo_uri = st.secrets["mongo"]["uri"]
-db_name = st.secrets["mongo"]["db_name"]
-collection_name = "iteration-data"
-
-# --------------------------------------------------------
-# Mongo connection
-# --------------------------------------------------------
-client = MongoClient(mongo_uri)
-db = client[db_name]
-
-if collection_name not in db.list_collection_names():
-    db.create_collection(collection_name)
-
-collection = db[collection_name]
-
-# --------------------------------------------------------
-# Auth header for ADO
-# --------------------------------------------------------
-pat_bytes = f":{personal_access_token}".encode("utf-8")
-headers = {
-    "Content-Type": "application/json",
-    "Authorization": "Basic " + base64.b64encode(pat_bytes).decode("utf-8")
-}
-
+def sanitize_keys(d):
+    """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
+    if isinstance(d, dict):
+        return {k.replace(".", "_").replace("$", "_"): sanitize_keys(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [sanitize_keys(i) for i in d]
+    else:
+        return d
 
 def get_iterations():
-    """Get all iterations for the project."""
-    url = f"{organization_url}/{project_name}/_apis/work/teamsettings/iterations?api-version=7.0"
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json().get("value", [])
-
-
-def get_work_items_for_iteration(iteration_path):
-    """Get all work items for a given iteration path using WIQL + batch API."""
-    wiql = {
-        "query": f"""
-        SELECT [System.Id], [System.WorkItemType], [System.State], 
-               [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
-        FROM WorkItems
-        WHERE [System.TeamProject] = '{project_name}'
-        AND [System.IterationPath] = '{iteration_path}'
-        """
-    }
-
-    url = f"{organization_url}/{project_name}/_apis/wit/wiql?api-version=7.0"
-    response = requests.post(url, headers=headers, json=wiql)
-    response.raise_for_status()
-    work_items = response.json().get("workItems", [])
-
-    if not work_items:
-        return []
-
-    # Batch get work item details
-    ids = ",".join(str(wi["id"]) for wi in work_items)
-    url = f"{organization_url}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,System.IterationPath,Microsoft.VSTS.Scheduling.Effort,Microsoft.VSTS.Common.ClosedDate&api-version=7.0"
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.json().get("value", [])
-
-
-def refresh_iterations():
-    """
-    Fetch iteration data from Azure DevOps and store in MongoDB.
-    Uses try/except around each iteration to ensure partial progress if errors occur.
-    """
+    """Fetch iterations from Azure DevOps and store them in MongoDB, including Iteration ID."""
     try:
-        iterations = get_iterations()
-    except Exception as e:
-        logging.error(f"Failed to fetch iterations from ADO: {e}")
-        return
+        # Get user settings from session state
+        user_email = st.session_state.get("user_email")
+        if not user_email:
+            st.error("User not logged in.")
+            return
 
-    for iteration in iterations:
-        try:
-            # Extract iteration metadata
-            iteration_name = iteration["path"]
-            start_date = iteration.get("attributes", {}).get("startDate")
-            end_date = iteration.get("attributes", {}).get("finishDate")
+        client = MongoClient(st.secrets["mongo"]["url"])
+        db = client[st.secrets["mongo"]["db"]]
+        users_collection = db["users"]
 
-            logging.info(f"Processing iteration: {iteration_name}")
+        # Get user data
+        user_data = users_collection.find_one({"email": user_email})
+        if not user_data:
+            st.error("User data not found in database.")
+            return
 
-            # Fetch work items for this iteration
-            work_items = get_work_items_for_iteration(iteration_name)
+        # Extract settings
+        organization_url = user_data.get("organization_url")
+        project_name = user_data.get("project_name")
+        pat = user_data.get("pat")
 
-            num_user_stories = 0
-            num_bugs = 0
-            sum_effort_user_story = 0
-            closed_late = 0
+        if not organization_url or not project_name or not pat:
+            st.error("Missing ADO configuration in user settings.")
+            return
 
-            for wi in work_items:
-                fields = wi.get("fields", {})
-                w_type = fields.get("System.WorkItemType")
-                effort = fields.get("Microsoft.VSTS.Scheduling.Effort")
-                closed_date = fields.get("Microsoft.VSTS.Common.ClosedDate")
+        # Connect to Azure DevOps
+        credentials = BasicAuthentication("", pat)
+        connection = Connection(base_url=organization_url, creds=credentials)
+        core_client = connection.clients.get_core_client()
 
-                if w_type == "User Story":
-                    num_user_stories += 1
-                    if effort:
-                        sum_effort_user_story += effort
+        # Fetch iterations
+        iterations = core_client.get_classification_node(
+            project=project_name,
+            structure_group="iterations",
+            depth=5
+        )
 
-                    if closed_date and end_date:
-                        closed_dt = datetime.fromisoformat(closed_date.replace("Z", "+00:00"))
-                        end_dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-                        if closed_dt > end_dt:
-                            closed_late += 1
+        # Prepare MongoDB collection
+        iterations_collection = db["iterations"]
+        iterations_collection.create_index([("ADO Iteration ID", ASCENDING)], unique=True)
 
-                elif w_type == "Bug":
-                    num_bugs += 1
+        def process_node(node, path=""):
+            """Recursively process iteration nodes and save them with Iteration ID."""
+            current_path = f"{path}/{node.name}" if path else node.name
 
-            # Prepare iteration document
             iteration_doc = {
-                "IterationName": iteration_name,
-                "IterationStartDate": start_date,
-                "IterationEndDate": end_date,
-                "NumberOfUserStories": num_user_stories,
-                "NumberOfBugs": num_bugs,
-                "SumEffortUserStory": sum_effort_user_story,
-                "OnTime": closed_late,
+                "ADO Iteration ID": node.id,   # Unique ADO Iteration ID
+                "IterationName": current_path,
             }
 
-            # Upsert into MongoDB (no duplicates by IterationName)
-            collection.update_one(
-                {"IterationName": iteration_name},
-                {"$set": iteration_doc},
+            sanitized_doc = sanitize_keys(iteration_doc)
+
+            # Upsert into MongoDB
+            iterations_collection.update_one(
+                {"ADO Iteration ID": node.id},
+                {"$set": sanitized_doc},
                 upsert=True
             )
 
-            logging.info(f"Iteration data stored: {iteration_name}")
+            # Recurse into children
+            for child in getattr(node, "children", []):
+                process_node(child, current_path)
 
-        except Exception as e:
-            # Log the failure but continue with other iterations
-            logging.error(f"Failed to process iteration {iteration.get('path', 'UNKNOWN')}: {e}")
+        process_node(iterations)
+        st.success("Iterations (with IDs) fetched and stored successfully!")
 
-    logging.info("Iteration data refresh complete.")
+    except Exception as e:
+        st.error(f"Error fetching iterations: {str(e)}")
+        traceback.print_exc()
