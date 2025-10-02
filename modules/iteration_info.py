@@ -93,6 +93,7 @@ def refresh_iterations():
     for iteration in iterations:
         try:
             # Extract iteration metadata
+            iteration_id = iteration["id"]
             iteration_name = iteration["path"]
             start_date = iteration.get("attributes", {}).get("startDate")
             end_date = iteration.get("attributes", {}).get("finishDate")
@@ -129,6 +130,7 @@ def refresh_iterations():
 
             # Prepare iteration document
             iteration_doc = {
+                "IterationId": iteration_id,
                 "IterationName": iteration_name,
                 "IterationStartDate": start_date,
                 "IterationEndDate": end_date,
@@ -140,7 +142,7 @@ def refresh_iterations():
 
             # Upsert into MongoDB (no duplicates by IterationName)
             collection.update_one(
-                {"IterationName": iteration_name},
+                {"IterationId": iteration_id},
                 {"$set": iteration_doc},
                 upsert=True
             )
