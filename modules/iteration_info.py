@@ -2,12 +2,15 @@ def refresh_iterations():
     """
     Fetch iteration data from Azure DevOps and store in MongoDB.
     Stores both GUID IterationId and numeric System_IterationID, upserts by numeric ID.
+    Includes robust logging for debugging.
     """
     try:
+        url = f"{organization_url}/{project_name}/_apis/work/teamsettings/iterations?api-version=7.0"
+        logging.info(f"Fetching iterations from Azure DevOps URL: {url}")
         iterations = get_iterations()
         logging.info(f"Fetched {len(iterations)} iterations from Azure DevOps")
-    except Exception as e:
-        logging.error(f"Failed to fetch iterations from ADO:")
+    except Exception:
+        logging.exception("Failed to fetch iterations from ADO. Check your URL, PAT, and project name.")
         return
 
     for iteration in iterations:
@@ -22,10 +25,15 @@ def refresh_iterations():
                 logging.warning(f"Skipping iteration with missing ID or path: {iteration}")
                 continue
 
-            logging.info(f"Processing iteration: {iteration_path}")
+            logging.info(f"Processing iteration: {iteration_path} (GUID: {iteration_guid})")
 
             # Fetch work items for this iteration (using GUID)
-            work_items = get_work_items_for_iteration(iteration_guid)
+            try:
+                work_items = get_work_items_for_iteration(iteration_guid)
+                logging.info(f"Fetched {len(work_items)} work items for iteration {iteration_path}")
+            except Exception:
+                logging.exception(f"Failed to fetch work items for iteration {iteration_path}")
+                continue
 
             num_user_stories = 0
             num_bugs = 0
@@ -72,7 +80,7 @@ def refresh_iterations():
                 "NumberOfUserStories": num_user_stories,
                 "NumberOfBugs": num_bugs,
                 "SumEffortUserStory": sum_effort_user_story,
-                "OnTime": on_time_count,
+                "OnTime": on_time_count,                  # number of user stories completed on time
                 "System_IterationID": numeric_iteration_id  # numeric ID
             }
 
@@ -85,7 +93,7 @@ def refresh_iterations():
 
             logging.info(f"Iteration data stored: {iteration_path} (Numeric ID: {numeric_iteration_id})")
 
-        except Exception as e:
-            logging.error(f"Failed to process iteration {iteration.get('path', 'UNKNOWN')}: {e}")
+        except Exception:
+            logging.exception(f"Failed to process iteration {iteration.get('path', 'UNKNOWN')}")
 
     logging.info("Iteration data refresh complete.")
