@@ -93,7 +93,6 @@ def refresh_iterations():
     for iteration in iterations:
         try:
             # Extract iteration metadata
-            iteration_id = iteration.get("attributes", {}).get("iterationId")
             iteration_name = iteration["path"]
             start_date = iteration.get("attributes", {}).get("startDate")
             end_date = iteration.get("attributes", {}).get("finishDate")
