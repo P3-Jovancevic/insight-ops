@@ -51,15 +51,15 @@ def get_iterations():
     return response.json().get("value", [])
 
 
-def get_work_items_for_iteration(iteration_path):
-    """Get all work items for a given iteration path using WIQL + batch API."""
+def get_work_items_for_iteration(iteration_id):
+    """Get all work items for a given iteration id using WIQL + batch API."""
     wiql = {
         "query": f"""
-        SELECT [System.Id], [System.WorkItemType], [System.State], 
+        SELECT [System.Id], [System.WorkItemType], [System.State], [System.IterationPath],
                [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
         FROM WorkItems
         WHERE [System.TeamProject] = '{project_name}'
-        AND [System.IterationPath] = '{iteration_path}'
+        AND [System.IterationId] = '{iteration_id}'
         """
     }
 
@@ -93,7 +93,7 @@ def refresh_iterations():
     for iteration in iterations:
         try:
             # Extract iteration metadata
-            iteration_id = iteration["id"]
+            iteration_id = iteration.get("attributes", {}).get("iterationId")
             iteration_name = iteration["path"]
             start_date = iteration.get("attributes", {}).get("startDate")
             end_date = iteration.get("attributes", {}).get("finishDate")
