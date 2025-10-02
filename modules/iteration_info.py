@@ -7,7 +7,7 @@ def refresh_iterations():
         iterations = get_iterations()
         logging.info(f"Fetched {len(iterations)} iterations from Azure DevOps")
     except Exception as e:
-        logging.error(f"Failed to fetch iterations from ADO: {e}")
+        logging.error(f"Failed to fetch iterations from ADO:")
         return
 
     for iteration in iterations:
