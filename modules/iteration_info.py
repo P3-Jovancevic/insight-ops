@@ -1,16 +1,32 @@
+import sys
+import logging
+from datetime import datetime
+
+# -----------------------------
+# Streamlit-safe logger setup
+# -----------------------------
+logger = logging.getLogger("ado_iterations")
+logger.setLevel(logging.INFO)
+if not logger.hasHandlers():
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
+
 def refresh_iterations():
     """
     Fetch iteration data from Azure DevOps and store in MongoDB.
     Stores both GUID IterationId and numeric System_IterationID, upserts by numeric ID.
-    Includes robust logging for debugging.
+    Streamlit-safe logging.
     """
     try:
         url = f"{organization_url}/{project_name}/_apis/work/teamsettings/iterations?api-version=7.0"
-        logging.info(f"Fetching iterations from Azure DevOps URL: {url}")
+        logger.info(f"Fetching iterations from Azure DevOps URL: {url}")
         iterations = get_iterations()
-        logging.info(f"Fetched {len(iterations)} iterations from Azure DevOps")
+        logger.info(f"Fetched {len(iterations)} iterations from Azure DevOps")
     except Exception:
-        logging.exception("Failed to fetch iterations from ADO. Check your URL, PAT, and project name.")
+        logger.error("Failed to fetch iterations from ADO. Check your URL, PAT, and project name.", exc_info=True)
         return
 
     for iteration in iterations:
@@ -22,17 +38,17 @@ def refresh_iterations():
             end_date = iteration.get("attributes", {}).get("finishDate")
 
             if not iteration_guid or not iteration_path:
-                logging.warning(f"Skipping iteration with missing ID or path: {iteration}")
+                logger.warning(f"Skipping iteration with missing ID or path: {iteration}")
                 continue
 
-            logging.info(f"Processing iteration: {iteration_path} (GUID: {iteration_guid})")
+            logger.info(f"Processing iteration: {iteration_path} (GUID: {iteration_guid})")
 
             # Fetch work items for this iteration (using GUID)
             try:
                 work_items = get_work_items_for_iteration(iteration_guid)
-                logging.info(f"Fetched {len(work_items)} work items for iteration {iteration_path}")
+                logger.info(f"Fetched {len(work_items)} work items for iteration {iteration_path}")
             except Exception:
-                logging.exception(f"Failed to fetch work items for iteration {iteration_path}")
+                logger.error(f"Failed to fetch work items for iteration {iteration_path}", exc_info=True)
                 continue
 
             num_user_stories = 0
@@ -62,13 +78,13 @@ def refresh_iterations():
                             if closed_dt <= end_dt:
                                 on_time_count += 1
                         except Exception as e:
-                            logging.warning(f"Failed to parse dates for work item {wi.get('id')}: {e}")
+                            logger.warning(f"Failed to parse dates for work item {wi.get('id')}: {e}")
 
                 elif w_type == "Bug":
                     num_bugs += 1
 
             if numeric_iteration_id is None:
-                logging.warning(f"No numeric System_IterationId found for iteration {iteration_path}, skipping upsert")
+                logger.warning(f"No numeric System_IterationId found for iteration {iteration_path}, skipping upsert")
                 continue
 
             # Prepare iteration document
@@ -91,9 +107,9 @@ def refresh_iterations():
                 upsert=True
             )
 
-            logging.info(f"Iteration data stored: {iteration_path} (Numeric ID: {numeric_iteration_id})")
+            logger.info(f"Iteration data stored: {iteration_path} (Numeric ID: {numeric_iteration_id})")
 
         except Exception:
-            logging.exception(f"Failed to process iteration {iteration.get('path', 'UNKNOWN')}")
+            logger.error(f"Failed to process iteration {iteration.get('path', 'UNKNOWN')}", exc_info=True)
 
-    logging.info("Iteration data refresh complete.")
+    logger.info("Iteration data refresh complete.")
