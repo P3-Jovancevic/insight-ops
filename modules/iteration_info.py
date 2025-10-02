@@ -56,7 +56,7 @@ def get_work_items_for_iteration(iteration_path):
     wiql = {
         "query": f"""
         SELECT [System.Id], [System.WorkItemType], [System.State], 
-               [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate], [System.IterationId]
+               [Microsoft.VSTS.Scheduling.Effort], [Microsoft.VSTS.Common.ClosedDate]
         FROM WorkItems
         WHERE [System.TeamProject] = '{project_name}'
         AND [System.IterationPath] = '{iteration_path}'
@@ -73,7 +73,7 @@ def get_work_items_for_iteration(iteration_path):
 
     # Batch get work item details
     ids = ",".join(str(wi["id"]) for wi in work_items)
-    url = f"{organization_url}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,System.IterationPath,System.IterationId,Microsoft.VSTS.Scheduling.Effort,Microsoft.VSTS.Common.ClosedDate&api-version=7.0"
+    url = f"{organization_url}/_apis/wit/workitems?ids={ids}&fields=System.WorkItemType,System.IterationPath,Microsoft.VSTS.Scheduling.Effort,Microsoft.VSTS.Common.ClosedDate&api-version=7.0"
     response = requests.get(url, headers=headers)
     response.raise_for_status()
     return response.json().get("value", [])
@@ -129,7 +129,6 @@ def refresh_iterations():
 
             # Prepare iteration document
             iteration_doc = {
-                "IterationId": iteration_id,
                 "IterationName": iteration_name,
                 "IterationStartDate": start_date,
                 "IterationEndDate": end_date,
@@ -141,7 +140,7 @@ def refresh_iterations():
 
             # Upsert into MongoDB (no duplicates by IterationName)
             collection.update_one(
-                {"IterationId": iteration_id},
+                {"IterationName": iteration_name},
                 {"$set": iteration_doc},
                 upsert=True
             )
