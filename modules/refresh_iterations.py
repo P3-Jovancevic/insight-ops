@@ -36,6 +36,7 @@ def refresh_iterations():
         connection = Connection(base_url=organization_url, creds=credentials)
         wit_client = connection.clients.get_work_item_tracking_client()
         work_client = connection.clients.get_work_client()
+        core_client = connection.clients.get_core_client()
 
         # --------------------------------------------------------
         # Connect to MongoDB
@@ -45,11 +46,21 @@ def refresh_iterations():
         collection = db["iteration-data"]
 
         # --------------------------------------------------------
-        # Get all iterations (including dates and paths)
+        # Determine team(s) to fetch iterations
         # --------------------------------------------------------
-        st.info("Fetching iterations from Azure DevOps...")
+        teams = core_client.get_teams(project=project_name)
+        if not teams:
+            st.warning(f"No teams found in project '{project_name}'")
+            return
 
-        iterations = work_client.get_team_iterations(project=project_name, team=project_name)
+        # For simplicity, we process the first team
+        team_name = teams[0].name
+        st.info(f"Using team: {team_name}")
+
+        # --------------------------------------------------------
+        # Get all iterations for the team
+        # --------------------------------------------------------
+        iterations = work_client.get_team_iterations(project=project_name, team=team_name)
         if not iterations:
             st.warning("No iterations found.")
             return
@@ -65,9 +76,16 @@ def refresh_iterations():
             start_date = getattr(iteration.attributes, "start_date", None)
             end_date = getattr(iteration.attributes, "finish_date", None)
 
-            # Format to datetime if available
-            start_date = datetime.fromisoformat(start_date.replace("Z", "")) if start_date else None
-            end_date = datetime.fromisoformat(end_date.replace("Z", "")) if end_date else None
+            # Convert dates safely
+            try:
+                start_date_dt = datetime.fromisoformat(start_date.replace("Z", "")) if start_date else None
+                end_date_dt = datetime.fromisoformat(end_date.replace("Z", "")) if end_date else None
+            except Exception as e:
+                st.warning(f"Error parsing dates for iteration '{iteration_path}': {e}")
+                start_date_dt = None
+                end_date_dt = None
+
+            st.write(f"Processing iteration: {iteration_path} (ID: {iteration_id})")
 
             # --------------------------------------------------------
             # Fetch Work Items for this iteration
@@ -82,30 +100,17 @@ def refresh_iterations():
             }
 
             query_result = wit_client.query_by_wiql(wiql).work_items
-            if not query_result:
-                iteration_data = {
-                    "IterationID": iteration_id,
-                    "IterationPath": iteration_path,
-                    "IterationStartDate": start_date,
-                    "IterationEndDate": end_date,
-                    "NumberOfUserStories": 0,
-                    "NumberOfBugs": 0,
-                    "SumEffortUserStories": 0,
-                    "NumberOfStoriesDone": 0,
-                    "NumberOfStoriesLate": 0
-                }
-                collection.update_one({"IterationID": iteration_id}, {"$set": iteration_data}, upsert=True)
-                continue
+            st.write(f"Work items found: {len(query_result)}")
 
             # Get detailed work item info in batches
-            work_item_ids = [wi.id for wi in query_result]
-            batch_size = 200
             all_items = []
-
-            for i in range(0, len(work_item_ids), batch_size):
-                batch = work_item_ids[i:i + batch_size]
-                details = wit_client.get_work_items(batch, expand="All")
-                all_items.extend(details)
+            if query_result:
+                work_item_ids = [wi.id for wi in query_result]
+                batch_size = 200
+                for i in range(0, len(work_item_ids), batch_size):
+                    batch = work_item_ids[i:i + batch_size]
+                    details = wit_client.get_work_items(batch, expand="All")
+                    all_items.extend(details)
 
             # --------------------------------------------------------
             # Aggregate metrics
@@ -115,21 +120,18 @@ def refresh_iterations():
 
             num_user_stories = len(user_stories)
             num_bugs = len(bugs)
-            sum_effort = sum(
-                wi.fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0
-                for wi in user_stories
-            )
+            sum_effort = sum(wi.fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0 for wi in user_stories)
             stories_done = [wi for wi in user_stories if wi.fields.get("System.State") == "Done"]
 
             # Count stories with ClosedDate > IterationEndDate
             stories_late = 0
-            if end_date:
+            if end_date_dt:
                 for wi in user_stories:
                     closed_date_str = wi.fields.get("Microsoft.VSTS.Common.ClosedDate")
                     if closed_date_str:
                         try:
                             closed_date = datetime.fromisoformat(closed_date_str.replace("Z", ""))
-                            if closed_date > end_date:
+                            if closed_date > end_date_dt:
                                 stories_late += 1
                         except Exception:
                             pass
@@ -140,8 +142,8 @@ def refresh_iterations():
             iteration_data = {
                 "IterationID": iteration_id,
                 "IterationPath": iteration_path,
-                "IterationStartDate": start_date,
-                "IterationEndDate": end_date,
+                "IterationStartDate": start_date_dt,
+                "IterationEndDate": end_date_dt,
                 "NumberOfUserStories": num_user_stories,
                 "NumberOfBugs": num_bugs,
                 "SumEffortUserStories": sum_effort,
@@ -149,11 +151,13 @@ def refresh_iterations():
                 "NumberOfStoriesLate": stories_late
             }
 
-            collection.update_one({"IterationID": iteration_id}, {"$set": sanitize_keys(iteration_data)}, upsert=True)
+            collection.update_one(
+                {"IterationID": iteration_id},
+                {"$set": sanitize_keys(iteration_data)},
+                upsert=True
+            )
+            st.write(f"Inserted/Updated iteration '{iteration_path}' in MongoDB.")
 
-        # --------------------------------------------------------
-        # Finish
-        # --------------------------------------------------------
         st.success("✅ Iteration data refreshed and stored in MongoDB (collection: iteration-data).")
 
     except Exception as e:
