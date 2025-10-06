@@ -5,9 +5,6 @@ from pymongo import MongoClient
 from datetime import datetime
 import traceback
 
-# --------------------------------------------------------
-# Helper function
-# --------------------------------------------------------
 def sanitize_keys(d):
     """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
     if isinstance(d, dict):
@@ -17,9 +14,6 @@ def sanitize_keys(d):
     else:
         return d
 
-# --------------------------------------------------------
-# Main refresh function
-# --------------------------------------------------------
 def refresh_iterations():
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
@@ -29,46 +23,44 @@ def refresh_iterations():
     db_name = st.secrets["mongo"]["db_name"]
 
     try:
-        # --------------------------------------------------------
         # Connect to Azure DevOps
-        # --------------------------------------------------------
         credentials = BasicAuthentication('', personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
         wit_client = connection.clients.get_work_item_tracking_client()
         work_client = connection.clients.get_work_client()
         core_client = connection.clients.get_core_client()
 
-        # --------------------------------------------------------
         # Connect to MongoDB
-        # --------------------------------------------------------
         client = MongoClient(mongo_uri)
         db = client[db_name]
         collection = db["iteration-data"]
 
         # --------------------------------------------------------
-        # Determine team(s) to fetch iterations
+        # Step 1: List teams in project
         # --------------------------------------------------------
         teams = core_client.get_teams(project=project_name)
         if not teams:
             st.warning(f"No teams found in project '{project_name}'")
             return
 
-        # For simplicity, we process the first team
-        team_name = teams[0].name
-        st.info(f"Using team: {team_name}")
+        team_names = [t.name for t in teams]
+        st.write("Teams found in project:", team_names)
+
+        # For testing, pick the first team
+        team_name = team_names[0]
+        st.write(f"Using team: {team_name}")
 
         # --------------------------------------------------------
-        # Get all iterations for the team
+        # Step 2: Get all iterations for the team
         # --------------------------------------------------------
-        iterations = work_client.get_team_iterations(project=project_name, team=team_name)
+        iterations = work_client.get_team_iterations(project=project_name, team=team_name, time_frame="all")
+        st.write(f"Number of iterations returned: {len(iterations)}")
         if not iterations:
             st.warning("No iterations found.")
             return
 
-        st.info(f"Found {len(iterations)} iterations.")
-
         # --------------------------------------------------------
-        # Process each iteration
+        # Step 3: Process each iteration
         # --------------------------------------------------------
         for iteration in iterations:
             iteration_id = iteration.id
@@ -76,7 +68,7 @@ def refresh_iterations():
             start_date = getattr(iteration.attributes, "start_date", None)
             end_date = getattr(iteration.attributes, "finish_date", None)
 
-            # Convert dates safely
+            # Safe datetime conversion
             try:
                 start_date_dt = datetime.fromisoformat(start_date.replace("Z", "")) if start_date else None
                 end_date_dt = datetime.fromisoformat(end_date.replace("Z", "")) if end_date else None
@@ -87,9 +79,7 @@ def refresh_iterations():
 
             st.write(f"Processing iteration: {iteration_path} (ID: {iteration_id})")
 
-            # --------------------------------------------------------
-            # Fetch Work Items for this iteration
-            # --------------------------------------------------------
+            # Step 3a: Fetch Work Items
             wiql = {
                 "query": f"""
                     SELECT [System.Id], [System.WorkItemType], [System.State],
@@ -100,9 +90,9 @@ def refresh_iterations():
             }
 
             query_result = wit_client.query_by_wiql(wiql).work_items
-            st.write(f"Work items found: {len(query_result)}")
+            st.write(f"Work items returned: {len(query_result)}")
 
-            # Get detailed work item info in batches
+            # Step 3b: Fetch details in batches
             all_items = []
             if query_result:
                 work_item_ids = [wi.id for wi in query_result]
@@ -112,9 +102,7 @@ def refresh_iterations():
                     details = wit_client.get_work_items(batch, expand="All")
                     all_items.extend(details)
 
-            # --------------------------------------------------------
-            # Aggregate metrics
-            # --------------------------------------------------------
+            # Step 3c: Aggregate metrics
             user_stories = [wi for wi in all_items if wi.fields.get("System.WorkItemType") == "User Story"]
             bugs = [wi for wi in all_items if wi.fields.get("System.WorkItemType") == "Bug"]
 
@@ -123,7 +111,7 @@ def refresh_iterations():
             sum_effort = sum(wi.fields.get("Microsoft.VSTS.Scheduling.Effort", 0) or 0 for wi in user_stories)
             stories_done = [wi for wi in user_stories if wi.fields.get("System.State") == "Done"]
 
-            # Count stories with ClosedDate > IterationEndDate
+            # Late stories
             stories_late = 0
             if end_date_dt:
                 for wi in user_stories:
@@ -136,9 +124,7 @@ def refresh_iterations():
                         except Exception:
                             pass
 
-            # --------------------------------------------------------
-            # Prepare document and upsert to MongoDB
-            # --------------------------------------------------------
+            # Step 3d: Prepare document
             iteration_data = {
                 "IterationID": iteration_id,
                 "IterationPath": iteration_path,
@@ -151,6 +137,7 @@ def refresh_iterations():
                 "NumberOfStoriesLate": stories_late
             }
 
+            # Step 3e: Upsert to MongoDB
             collection.update_one(
                 {"IterationID": iteration_id},
                 {"$set": sanitize_keys(iteration_data)},
@@ -158,7 +145,12 @@ def refresh_iterations():
             )
             st.write(f"Inserted/Updated iteration '{iteration_path}' in MongoDB.")
 
-        st.success("✅ Iteration data refreshed and stored in MongoDB (collection: iteration-data).")
+        # --------------------------------------------------------
+        # Step 4: Mongo test
+        # --------------------------------------------------------
+        st.success("✅ Iteration data refresh completed.")
+        test_doc = collection.find_one()
+        st.write("Mongo test - first document in collection:", test_doc)
 
     except Exception as e:
         st.error(f"❌ Error during iteration refresh: {e}")
