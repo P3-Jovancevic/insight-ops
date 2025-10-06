@@ -28,7 +28,6 @@ def refresh_iterations():
         connection = Connection(base_url=organization_url, creds=credentials)
         wit_client = connection.clients.get_work_item_tracking_client()
         work_client = connection.clients.get_work_client()
-        core_client = connection.clients.get_core_client()
 
         # Connect to MongoDB
         client = MongoClient(mongo_uri)
@@ -36,50 +35,54 @@ def refresh_iterations():
         collection = db["iteration-data"]
 
         # --------------------------------------------------------
-        # Step 1: List teams in project
+        # Step 1: Fetch all iteration nodes in the project
         # --------------------------------------------------------
-        teams = core_client.get_teams(project=project_name)
-        if not teams:
-            st.warning(f"No teams found in project '{project_name}'")
-            return
+        def traverse_iteration_nodes(node, parent_path=""):
+            """Recursively traverse iteration nodes to get all paths with dates."""
+            iteration_list = []
+            current_path = f"{parent_path}\\{node.name}" if parent_path else node.name
+            start_date = getattr(node.attributes, "start_date", None)
+            end_date = getattr(node.attributes, "finish_date", None)
 
-        team_names = [t.name for t in teams]
-        st.write("Teams found in project:", team_names)
+            iteration_list.append({
+                "IterationPath": current_path,
+                "StartDate": start_date,
+                "EndDate": end_date
+            })
 
-        # For testing, pick the first team
-        team_name = team_names[0]
-        st.write(f"Using team: {team_name}")
+            # Recurse into child nodes
+            children = getattr(node, "children", [])
+            for child in children:
+                iteration_list.extend(traverse_iteration_nodes(child, current_path))
+
+            return iteration_list
+
+        # Get top-level iteration node
+        root_node = work_client.get_classification_node(
+            project=project_name,
+            structure_group="iterations",
+            depth=10
+        )
+
+        all_iterations = traverse_iteration_nodes(root_node)
+        st.write(f"Found {len(all_iterations)} iteration paths.")
 
         # --------------------------------------------------------
-        # Step 2: Get all iterations for the team
+        # Step 2: For each iteration, fetch work items and compute metrics
         # --------------------------------------------------------
-        iterations = work_client.get_team_iterations(project=project_name, team=team_name, time_frame="all")
-        st.write(f"Number of iterations returned: {len(iterations)}")
-        if not iterations:
-            st.warning("No iterations found.")
-            return
+        for iteration in all_iterations:
+            iteration_path = iteration["IterationPath"]
+            start_date_str = iteration["StartDate"]
+            end_date_str = iteration["EndDate"]
 
-        # --------------------------------------------------------
-        # Step 3: Process each iteration
-        # --------------------------------------------------------
-        for iteration in iterations:
-            iteration_id = iteration.id
-            iteration_path = iteration.path
-            start_date = getattr(iteration.attributes, "start_date", None)
-            end_date = getattr(iteration.attributes, "finish_date", None)
-
-            # Safe datetime conversion
             try:
-                start_date_dt = datetime.fromisoformat(start_date.replace("Z", "")) if start_date else None
-                end_date_dt = datetime.fromisoformat(end_date.replace("Z", "")) if end_date else None
-            except Exception as e:
-                st.warning(f"Error parsing dates for iteration '{iteration_path}': {e}")
-                start_date_dt = None
-                end_date_dt = None
+                start_date = datetime.fromisoformat(start_date_str.replace("Z", "")) if start_date_str else None
+                end_date = datetime.fromisoformat(end_date_str.replace("Z", "")) if end_date_str else None
+            except Exception:
+                start_date = None
+                end_date = None
 
-            st.write(f"Processing iteration: {iteration_path} (ID: {iteration_id})")
-
-            # Step 3a: Fetch Work Items
+            # WIQL query
             wiql = {
                 "query": f"""
                     SELECT [System.Id], [System.WorkItemType], [System.State],
@@ -90,21 +93,17 @@ def refresh_iterations():
             }
 
             query_result = wit_client.query_by_wiql(wiql).work_items
-            st.write(f"Work items returned: {len(query_result)}")
-
-            # Step 3b: Fetch details in batches
-            all_items = []
+            work_items = []
             if query_result:
-                work_item_ids = [wi.id for wi in query_result]
+                ids = [wi.id for wi in query_result]
                 batch_size = 200
-                for i in range(0, len(work_item_ids), batch_size):
-                    batch = work_item_ids[i:i + batch_size]
-                    details = wit_client.get_work_items(batch, expand="All")
-                    all_items.extend(details)
+                for i in range(0, len(ids), batch_size):
+                    batch = ids[i:i + batch_size]
+                    work_items.extend(wit_client.get_work_items(batch, expand="All"))
 
-            # Step 3c: Aggregate metrics
-            user_stories = [wi for wi in all_items if wi.fields.get("System.WorkItemType") == "User Story"]
-            bugs = [wi for wi in all_items if wi.fields.get("System.WorkItemType") == "Bug"]
+            # Metrics
+            user_stories = [wi for wi in work_items if wi.fields.get("System.WorkItemType") == "User Story"]
+            bugs = [wi for wi in work_items if wi.fields.get("System.WorkItemType") == "Bug"]
 
             num_user_stories = len(user_stories)
             num_bugs = len(bugs)
@@ -113,23 +112,23 @@ def refresh_iterations():
 
             # Late stories
             stories_late = 0
-            if end_date_dt:
+            if end_date:
                 for wi in user_stories:
                     closed_date_str = wi.fields.get("Microsoft.VSTS.Common.ClosedDate")
                     if closed_date_str:
                         try:
                             closed_date = datetime.fromisoformat(closed_date_str.replace("Z", ""))
-                            if closed_date > end_date_dt:
+                            if closed_date > end_date:
                                 stories_late += 1
                         except Exception:
                             pass
 
-            # Step 3d: Prepare document
+            # Document for Mongo
             iteration_data = {
-                "IterationID": iteration_id,
+                "IterationID": getattr(iteration, "id", None),
                 "IterationPath": iteration_path,
-                "IterationStartDate": start_date_dt,
-                "IterationEndDate": end_date_dt,
+                "IterationStartDate": start_date,
+                "IterationEndDate": end_date,
                 "NumberOfUserStories": num_user_stories,
                 "NumberOfBugs": num_bugs,
                 "SumEffortUserStories": sum_effort,
@@ -137,21 +136,17 @@ def refresh_iterations():
                 "NumberOfStoriesLate": stories_late
             }
 
-            # Step 3e: Upsert to MongoDB
+            # Upsert
             collection.update_one(
-                {"IterationID": iteration_id},
+                {"IterationPath": iteration_path},
                 {"$set": sanitize_keys(iteration_data)},
                 upsert=True
             )
-            st.write(f"Inserted/Updated iteration '{iteration_path}' in MongoDB.")
 
-        # --------------------------------------------------------
-        # Step 4: Mongo test
-        # --------------------------------------------------------
-        st.success("✅ Iteration data refresh completed.")
-        test_doc = collection.find_one()
-        st.write("Mongo test - first document in collection:", test_doc)
+            st.write(f"Inserted/Updated iteration: {iteration_path} | User Stories: {num_user_stories}, Bugs: {num_bugs}")
+
+        st.success("✅ All iteration data refreshed and stored in MongoDB.")
 
     except Exception as e:
-        st.error(f"❌ Error during iteration refresh: {e}")
+        st.error(f"❌ Error refreshing iterations: {e}")
         st.error(traceback.format_exc())
