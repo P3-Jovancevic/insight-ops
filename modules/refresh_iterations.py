@@ -17,7 +17,7 @@ def sanitize_keys(d):
 def refresh_iterations_basic():
     """
     Fetch all iteration paths and their start/end dates from Azure DevOps
-    and store them in MongoDB.
+    and store them in MongoDB. Displays status messages on Streamlit page.
     """
     # Load secrets
     personal_access_token = st.secrets["ado"]["ado_pat"]
@@ -27,31 +27,26 @@ def refresh_iterations_basic():
     db_name = st.secrets["mongo"]["db_name"]
 
     try:
-        # ---------------------------
-        # Connect to Azure DevOps
-        # ---------------------------
+        st.info("Connecting to Azure DevOps...")
         credentials = BasicAuthentication('', personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
         work_client = connection.clients.get_work_client()
+        st.success("Connected to Azure DevOps.")
 
-        # ---------------------------
-        # Connect to MongoDB
-        # ---------------------------
+        st.info("Connecting to MongoDB...")
         client = MongoClient(mongo_uri)
         db = client[db_name]
         collection = db["iteration-data"]
+        st.success("Connected to MongoDB.")
 
-        # ---------------------------
-        # Fetch iteration classification nodes
-        # ---------------------------
+        st.info("Fetching iteration nodes...")
         root_node = work_client.get_classification_node(
             project=project_name,
             structure_group="iterations",
-            depth=10  # fetch sub-iterations up to depth 10
+            depth=10
         )
 
         def traverse_nodes(node, parent_path=""):
-            """Recursively traverse iteration nodes and return list of dicts"""
             iteration_list = []
             path = f"{parent_path}\\{node.name}" if parent_path else node.name
             start_date = getattr(node.attributes, "start_date", None)
@@ -72,16 +67,18 @@ def refresh_iterations_basic():
         iterations = traverse_nodes(root_node)
         st.write(f"Found {len(iterations)} iterations.")
 
-        # ---------------------------
-        # Insert/update into MongoDB
-        # ---------------------------
+        if not iterations:
+            st.warning("No iterations found. Check if iterations exist in Azure DevOps project.")
+            return
+
+        st.info("Storing iterations into MongoDB...")
         for iteration in iterations:
             collection.update_one(
                 {"IterationPath": iteration["IterationPath"]},
                 {"$set": sanitize_keys(iteration)},
                 upsert=True
             )
-            st.write(f"Inserted/Updated: {iteration['IterationPath']}")
+            st.write(f"Inserted/Updated iteration: {iteration['IterationPath']}")
 
         st.success("✅ Iteration paths stored in MongoDB successfully.")
 
