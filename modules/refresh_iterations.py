@@ -4,6 +4,7 @@ from msrest.authentication import BasicAuthentication
 from pymongo import MongoClient
 import streamlit as st
 import traceback
+from datetime import datetime
 
 def sanitize_keys(d):
     """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
@@ -40,7 +41,8 @@ def refresh_iterations():
         st.info("⚙️ Connecting to MongoDB...")
         client = MongoClient(mongo_uri)
         db = client[db_name]
-        collection = db["ado-iterations"]
+        collection_iterations = db["ado-iterations"]
+        collection_workitems = db["ado-workitems"]
 
         # Fetch iterations
         st.info(f"📡 Fetching iterations for project '{project_name}' (team: '{team_name}')...")
@@ -78,7 +80,6 @@ def refresh_iterations():
             num_bugs = 0
             sum_effort = 0
             num_done = 0
-            num_closed_late = 0
 
             batch_size = 200
 
@@ -91,7 +92,7 @@ def refresh_iterations():
                     "System.WorkItemType",
                     "System.State",
                     "Microsoft.VSTS.Scheduling.Effort",
-                    # Do NOT include System.ClosedDate here — fetch safely later
+                    # Do NOT include ClosedDate here — we calculate late stories from MongoDB
                 ])
 
                 for wi in response:
@@ -99,18 +100,33 @@ def refresh_iterations():
                     state = wi.fields.get("System.State", "")
                     effort = wi.fields.get("Microsoft.VSTS.Scheduling.Effort", 0)
 
-                    # Attempt to get ClosedDate safely
-                    closed_date = wi.fields.get("System.ClosedDate", None)
-
                     if wi_type == "User Story":
                         num_user_stories += 1
                         sum_effort += effort if effort else 0
                         if state.lower() == "done":
                             num_done += 1
-                        if closed_date and iteration.attributes.finish_date and closed_date > iteration.attributes.finish_date:
-                            num_closed_late += 1
                     elif wi_type == "Bug":
                         num_bugs += 1
+
+            # Calculate numUserStoriesClosedLate from MongoDB ado-workitems collection
+            finish_date = getattr(iteration.attributes, "finish_date", None)
+            num_closed_late = 0
+            if finish_date:
+                # Match work items for this iteration path and User Story type
+                query = {
+                    "System_IterationPath": iteration_path,
+                    "System_WorkItemType": "User Story",
+                    "Microsoft_VSTS_Common_ClosedDate": {"$ne": None}
+                }
+                work_items_for_iteration = list(collection_workitems.find(query, {"Microsoft_VSTS_Common_ClosedDate": 1}))
+                for wi in work_items_for_iteration:
+                    closed_date = wi.get("Microsoft_VSTS_Common_ClosedDate")
+                    if closed_date:
+                        # Convert to datetime if it's stored as string
+                        if isinstance(closed_date, str):
+                            closed_date = datetime.fromisoformat(closed_date.replace("Z", "+00:00"))
+                        if closed_date > finish_date:
+                            num_closed_late += 1
 
             # Build iteration document
             data = {
@@ -118,7 +134,7 @@ def refresh_iterations():
                 "name": iteration.name,
                 "path": iteration.path,
                 "startDate": getattr(iteration.attributes, "start_date", None),
-                "finishDate": getattr(iteration.attributes, "finish_date", None),
+                "finishDate": finish_date,
                 "numUserStories": num_user_stories,
                 "numBugs": num_bugs,
                 "sumEffortUserStories": sum_effort,
@@ -129,7 +145,7 @@ def refresh_iterations():
             sanitized = sanitize_keys(data)
 
             # Upsert into MongoDB
-            collection.update_one(
+            collection_iterations.update_one(
                 {"id": sanitized["id"]},
                 {"$set": sanitized},
                 upsert=True
