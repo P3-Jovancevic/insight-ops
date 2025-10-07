@@ -56,7 +56,7 @@ def refresh_iterations():
         # Prepare WIQL template to fetch work items for an iteration
         wiql_template = """
         SELECT [System.Id], [System.WorkItemType], [System.State], 
-               [Microsoft.VSTS.Scheduling.Effort], [System.ClosedDate]
+               [Microsoft.VSTS.Scheduling.Effort]
         FROM WorkItems
         WHERE [System.TeamProject] = '{project}'
           AND [System.IterationPath] = '{iteration_path}'
