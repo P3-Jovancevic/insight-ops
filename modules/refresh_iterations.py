@@ -1,5 +1,5 @@
 from azure.devops.connection import Connection
-from azure.devops.v5_1.work.models import TeamContext
+from azure.devops.v7_0.work.models import TeamContext
 from msrest.authentication import BasicAuthentication
 from pymongo import MongoClient
 import streamlit as st
