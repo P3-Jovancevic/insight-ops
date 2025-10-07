@@ -31,6 +31,7 @@ def refresh_iterations():
         credentials = BasicAuthentication('', personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
         work_client = connection.clients.get_work_client()
+        wit_client = connection.clients.get_work_item_tracking_client()
 
         # Build team context
         team_context = TeamContext(project_id=project_name, team_id=team_name)
@@ -53,27 +54,22 @@ def refresh_iterations():
 
         stored_count = 0
 
-        # Prepare WIQL template to fetch work items for an iteration
+        # WIQL template: fetch IDs only
         wiql_template = """
-        SELECT [System.Id], [System.WorkItemType], [System.State], 
-               [Microsoft.VSTS.Scheduling.Effort]
+        SELECT [System.Id], [System.WorkItemType], [System.State], [Microsoft.VSTS.Scheduling.Effort]
         FROM WorkItems
         WHERE [System.TeamProject] = '{project}'
           AND [System.IterationPath] = '{iteration_path}'
           AND [System.WorkItemType] IN ('User Story', 'Bug')
         """
 
-        wit_client = connection.clients.get_work_item_tracking_client()
-
         for iteration in iterations:
             iteration_path = iteration.path
 
             # Build WIQL for this iteration
-            wiql_query = {
-                "query": wiql_template.format(project=project_name, iteration_path=iteration_path)
-            }
+            wiql_query = {"query": wiql_template.format(project=project_name, iteration_path=iteration_path)}
 
-            # Execute WIQL
+            # Execute WIQL to get work item IDs
             query_results = wit_client.query_by_wiql(wiql_query)
             work_item_ids = [wi.id for wi in query_results.work_items]
 
@@ -88,15 +84,22 @@ def refresh_iterations():
 
             for i in range(0, len(work_item_ids), batch_size):
                 batch = work_item_ids[i:i + batch_size]
+
+                # Fetch details for the batch
                 response = wit_client.get_work_items(batch, fields=[
-                    "System.Id", "System.WorkItemType", "System.State", 
-                    "Microsoft.VSTS.Scheduling.Effort", "System.ClosedDate"
+                    "System.Id",
+                    "System.WorkItemType",
+                    "System.State",
+                    "Microsoft.VSTS.Scheduling.Effort",
+                    # Do NOT include System.ClosedDate here — fetch safely later
                 ])
 
                 for wi in response:
                     wi_type = wi.fields.get("System.WorkItemType", "")
                     state = wi.fields.get("System.State", "")
                     effort = wi.fields.get("Microsoft.VSTS.Scheduling.Effort", 0)
+
+                    # Attempt to get ClosedDate safely
                     closed_date = wi.fields.get("System.ClosedDate", None)
 
                     if wi_type == "User Story":
@@ -125,7 +128,7 @@ def refresh_iterations():
 
             sanitized = sanitize_keys(data)
 
-            # Upsert iteration document
+            # Upsert into MongoDB
             collection.update_one(
                 {"id": sanitized["id"]},
                 {"$set": sanitized},
