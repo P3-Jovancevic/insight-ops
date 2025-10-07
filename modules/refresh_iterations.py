@@ -1,4 +1,5 @@
 from azure.devops.connection import Connection
+from azure.devops.v5_1.work.models import TeamContext
 from msrest.authentication import BasicAuthentication
 from pymongo import MongoClient
 import streamlit as st
@@ -23,14 +24,17 @@ def refresh_iterations():
         personal_access_token = st.secrets["ado"]["ado_pat"]
         organization_url = st.secrets["ado"]["ado_site"]
         project_name = st.secrets["ado"]["ado_project"]
-        team_name = st.secrets["ado"].get("ado_team", project_name)  # fallback if team not specified
+        team_name = st.secrets["ado"].get("ado_team", project_name)
         mongo_uri = st.secrets["mongo"]["uri"]
         db_name = st.secrets["mongo"]["db_name"]
 
         # Connect to Azure DevOps
         credentials = BasicAuthentication('', personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
-        core_client = connection.clients.get_work_client()
+        work_client = connection.clients.get_work_client()
+
+        # Build team context (required by SDK)
+        team_context = TeamContext(project_id=project_name, team_id=team_name)
 
         # Connect to MongoDB
         st.info("⚙️ Connecting to MongoDB...")
@@ -38,9 +42,9 @@ def refresh_iterations():
         db = client[db_name]
         collection = db["ado-iterations"]
 
-        # Fetch iterations for the specified project and team
+        # Fetch iterations
         st.info(f"📡 Fetching iterations for project '{project_name}' (team: '{team_name}')...")
-        iterations = core_client.get_team_iterations(project=project_name, team=team_name)
+        iterations = work_client.get_team_iterations(team_context)
 
         if not iterations:
             st.warning("No iterations found.")
