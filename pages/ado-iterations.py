@@ -1,58 +1,50 @@
 import streamlit as st
 import pandas as pd
 from pymongo import MongoClient
-from modules.iteration_info import refresh_iterations
+from modules.refresh_iterations import refresh_iterations  # updated import
 
 st.title("Azure DevOps Iterations")
 
-# --------------------------------------------------------
-# MongoDB setup
-# --------------------------------------------------------
+# Load MongoDB credentials from Streamlit secrets
 mongo_uri = st.secrets["mongo"]["uri"]
 db_name = st.secrets["mongo"]["db_name"]
-collection_name = "iteration-data"
+collection_name = "ado-iterations"  # updated collection name
 
+# Connect to MongoDB
 client = MongoClient(mongo_uri)
 db = client[db_name]
 collection = db[collection_name]
 
-# --------------------------------------------------------
-# Refresh Iteration Data
-# --------------------------------------------------------
+# Button to refresh iteration data
 if st.button("↻ Refresh Iterations"):
-    with st.spinner("Refreshing iteration data from Azure DevOps..."):
-        refresh_iterations()
-    st.success("Iteration data refreshed successfully!")
+    refresh_iterations()  # Fetch and store iteration data directly in MongoDB
+    st.success("Iterations refreshed successfully!")
     st.rerun()
 
-# --------------------------------------------------------
-# Load Iteration Data from MongoDB
-# --------------------------------------------------------
+# Load and display iterations from MongoDB
 def load_iterations():
     """Fetch iteration data from MongoDB."""
-    iterations = list(collection.find({}, {"_id": 0}))  # Exclude internal Mongo _id
+    iterations = list(collection.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
     if not iterations:
-        return None, "No iteration data found. Please refresh."
+        return None, "No iterations found in MongoDB. Please refresh."
     return iterations, None
 
 iterations, error_message = load_iterations()
 
-# --------------------------------------------------------
-# Display Iteration Data
-# --------------------------------------------------------
 if error_message:
     st.warning(error_message)
 else:
-    st.write(f"**Number of iterations:** {len(iterations)}")
+    st.write(f"Total Iterations: {len(iterations)}")
 
     # Convert to DataFrame and display
     if isinstance(iterations, list) and all(isinstance(i, dict) for i in iterations):
         df = pd.DataFrame(iterations)
 
-        # Optional: sort by start date if available
-        if "IterationStartDate" in df.columns:
-            df = df.sort_values(by="IterationStartDate", ascending=True)
+        # Optional: order columns for readability
+        preferred_order = ["name", "path", "startDate", "finishDate", "id"]
+        df = df[[col for col in preferred_order if col in df.columns] + 
+                [col for col in df.columns if col not in preferred_order]]
 
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df)
     else:
-        st.json(iterations)  # Fallback for unexpected data format
+        st.json(iterations)  # Fallback to JSON display
