@@ -112,7 +112,30 @@ with col2:
 # OPTIONAL: DETAILS BELOW
 # ---------------------------------------------
 with st.expander("See data details"):
-    st.write("Latest Iteration:")
+    st.write("### Latest Iteration")
     st.dataframe(latest_iteration.to_frame().T)
-    st.write("Work Items Sample:")
+
+    st.write("### Work Items Sample")
     st.dataframe(workitems_df.head())
+
+    # ---------------------------------------------
+    # NEW SECTION: LEAD TIME SUMMARY STATS
+    # ---------------------------------------------
+    st.write("### Work Item Lead Time Summary")
+
+    # Filter out NaN or negative lead times (if any)
+    valid_lead_times = workitems_df["LeadTimeDays"].dropna()
+    valid_lead_times = valid_lead_times[valid_lead_times >= 0]
+
+    if not valid_lead_times.empty:
+        stats = {
+            "Min Lead Time (days)": valid_lead_times.min(),
+            "Max Lead Time (days)": valid_lead_times.max(),
+            "Average Lead Time (days)": valid_lead_times.mean(),
+            "Median Lead Time (days)": valid_lead_times.median()
+        }
+
+        summary_df = pd.DataFrame(list(stats.items()), columns=["Metric", "Value"])
+        st.dataframe(summary_df, use_container_width=True)
+    else:
+        st.info("No valid lead time data available for summary.")
