@@ -1,83 +1,118 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 from pymongo import MongoClient
-from modules.refresh_lead_cycle import refresh_lead_cycle
+from datetime import datetime, timedelta, timezone
 
-st.title("Azure DevOps Lead and Cycle times")
+# ---------------------------------------------
+# PAGE TITLE
+# ---------------------------------------------
+st.title("Lead Time Summary by Iteration")
 
-# Load MongoDB credentials from Streamlit secrets
+# ---------------------------------------------
+# CONNECT TO MONGO
+# ---------------------------------------------
 try:
     mongo_uri = st.secrets["mongo"]["uri"]
     db_name = st.secrets["mongo"]["db_name"]
-    collection_name = "lead-cycle-data"
 
-    # Connect to MongoDB
     client = MongoClient(mongo_uri)
     db = client[db_name]
-    collection = db[collection_name]
+
+    iterations_col = db["ado-iterations"]
+    workitems_col = db["ado-workitems"]
+
 except Exception as e:
     st.error(f"Failed to connect to MongoDB: {e}")
-    st.stop()  # Stop execution if connection fails
+    st.stop()
 
-# Button to refresh data
-if st.button("↻ Refresh"):
-    with st.spinner("Refreshing velocity data..."):
-        try:
-            refresh_lead_cycle()  # Fetch and store data in MongoDB
-            st.success("Velocity data refreshed successfully!")
-            st.rerun()
-        except Exception as e:
-            st.error(f"Failed to refresh velocity data: {e}")
+# ---------------------------------------------
+# LOAD DATA FROM MONGO
+# ---------------------------------------------
+try:
+    iterations = list(iterations_col.find({}, {"_id": 0, "path": 1, "startDate": 1, "finishDate": 1}))
+    workitems = list(workitems_col.find({}, {
+        "_id": 0,
+        "System_CreatedDate": 1,
+        "Microsoft_VSTS_Common_ClosedDate": 1,
+        "System_IterationPath": 1
+    }))
+except Exception as e:
+    st.error(f"Error loading data from MongoDB: {e}")
+    st.stop()
 
-# Load and display work items from MongoDB
-def load_work_items():
-    """Fetch work items from MongoDB."""
-    try:
-        work_items = list(collection.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
-        if not work_items:
-            return None, "No work items found in MongoDB. Please refresh."
-        return work_items, None
-    except Exception as e:
-        return None, f"Error loading work items: {e}"
+if not iterations or not workitems:
+    st.warning("No data found in MongoDB collections.")
+    st.stop()
 
-work_items, error_message = load_work_items()
+# ---------------------------------------------
+# CONVERT TO DATAFRAMES AND NORMALIZE DATES
+# ---------------------------------------------
+iterations_df = pd.DataFrame(iterations)
+workitems_df = pd.DataFrame(workitems)
 
-if error_message:
-    st.warning(error_message)
-else:
-    st.write(f"Total Sprints: {len(work_items)}")
+# Convert string dates to UTC datetime
+iterations_df["startDate"] = pd.to_datetime(iterations_df["startDate"], utc=True, errors="coerce")
+iterations_df["finishDate"] = pd.to_datetime(iterations_df["finishDate"], utc=True, errors="coerce")
+workitems_df["System_CreatedDate"] = pd.to_datetime(workitems_df["System_CreatedDate"], utc=True, errors="coerce")
+workitems_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(workitems_df["Microsoft_VSTS_Common_ClosedDate"], utc=True, errors="coerce")
 
-    # Convert to DataFrame
-    df = pd.DataFrame(work_items)
+# Drop rows with missing CreatedDate
+workitems_df = workitems_df.dropna(subset=["System_CreatedDate"])
 
-    # Display the table
-    # st.subheader("Cycle time") # Commented out to hide the table
-    # st.dataframe(df) # Commented out to hide the table
+# ---------------------------------------------
+# CALCULATE LEAD TIME (CLOSED OR ONGOING)
+# ---------------------------------------------
+now = datetime.now(timezone.utc)
 
-    # Ensure the necessary columns exist
-    required_columns = {"Date", "Iteration", "CycleTime", "LeadTime"}
-    
-    # Query MongoDB to get the lead and cycle time data
-    data = list(collection.find({"LeadTime": {"$ne": None}, "CycleTime": {"$ne": None}}))
+def calc_lead_time(row):
+    closed = row["Microsoft_VSTS_Common_ClosedDate"]
+    created = row["System_CreatedDate"]
+    if pd.isna(created):
+        return None
+    if pd.isna(closed):
+        return (now - created).days
+    else:
+        return (closed - created).days
 
-    # Convert the data to a pandas DataFrame
-    df = pd.DataFrame(data)
-    df['Date'] = pd.to_datetime(df['Date'])  # Ensure Date is in datetime format
+workitems_df["LeadTimeDays"] = workitems_df.apply(calc_lead_time, axis=1)
 
-    # Sort data by Date
-    df = df.sort_values(by='Date')
+# ---------------------------------------------
+# FIND LATEST ITERATION
+# ---------------------------------------------
+latest_iteration = iterations_df.sort_values(by="finishDate", ascending=False).iloc[0]
+latest_finish = latest_iteration["finishDate"]
+cutoff_date = latest_finish - timedelta(days=15)
 
-    # Plot Lead Time
-    fig_lead_time = px.line(df, x='Date', y='LeadTime', 
-                            title="Lead Time Over Time", 
-                            labels={'LeadTime': 'Lead Time (Days)'})
+# ---------------------------------------------
+# CALCULATE METRICS
+# ---------------------------------------------
+overall_lead_time = workitems_df["LeadTimeDays"].mean()
 
-    # Plot Cycle Time
-    fig_cycle_time = px.line(df, x='Date', y='CycleTime', 
-                            title="Cycle Time Over Time", 
-                            labels={'CycleTime': 'Cycle Time (Days)'})
+recent_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
+recent_lead_time = recent_items["LeadTimeDays"].mean() if not recent_items.empty else None
 
-    # Display the charts in Streamlit
-    st.plotly_chart(fig_lead_time)
-    st.plotly_chart(fig_cycle_time)
+# ---------------------------------------------
+# DISPLAY SCORECARDS
+# ---------------------------------------------
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        label="Overall Lead Time (All Work Items)",
+        value=f"{overall_lead_time:.2f} days" if overall_lead_time else "N/A"
+    )
+
+with col2:
+    st.metric(
+        label="Lead Time (Last 15 Days of Development)",
+        value=f"{recent_lead_time:.2f} days" if recent_lead_time else "N/A"
+    )
+
+# ---------------------------------------------
+# OPTIONAL: DETAILS BELOW
+# ---------------------------------------------
+with st.expander("See data details"):
+    st.write("Latest Iteration:")
+    st.dataframe(latest_iteration.to_frame().T)
+    st.write("Work Items Sample:")
+    st.dataframe(workitems_df.head())
