@@ -101,7 +101,7 @@ workitems_df["CycleTimeDays"] = workitems_df.apply(calc_cycle_time, axis=1)
 # ---------------------------------------------
 latest_iteration = iterations_df.sort_values(by="finishDate", ascending=False).iloc[0]
 latest_finish = latest_iteration["finishDate"]
-cutoff_date = latest_finish - timedelta(days=15)
+cutoff_date = latest_finish - timedelta(days=30)
 
 # ---------------------------------------------
 # CALCULATE METRICS
@@ -130,7 +130,7 @@ with col1:
 
 with col2:
     st.metric(
-        label="Lead Time (Last 15 Days of Development)",
+        label="Lead Time (Last 30 Days of Development)",
         value=f"{recent_lead_time:.2f} days" if recent_lead_time else "N/A"
     )
 
@@ -143,7 +143,7 @@ with col3:
 
 with col4:
     st.metric(
-        label="Cycle Time (Last 15 Days of Development)",
+        label="Cycle Time (Last 30 Days of Development)",
         value=f"{recent_cycle_time:.2f} days" if recent_cycle_time else "N/A"
     )
 
