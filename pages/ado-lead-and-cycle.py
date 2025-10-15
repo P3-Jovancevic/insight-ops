@@ -35,8 +35,7 @@ try:
         "_id": 0,
         "System_CreatedDate": 1,
         "Microsoft_VSTS_Common_ClosedDate": 1,
-        "System_IterationPath": 1,
-        "StoryPoints": 1  # optional effort field
+        "System_IterationPath": 1
     }))
 except Exception as e:
     st.error(f"Error loading data from MongoDB: {e}")
@@ -154,6 +153,7 @@ with col4:
 # ---------------------------------------------
 st.subheader("Burn-Up Chart (Story Count)")
 
+# Aggregate work items per iteration
 burnup_data = []
 for _, iteration in iterations_df.iterrows():
     path = iteration["path"]
@@ -161,7 +161,7 @@ for _, iteration in iterations_df.iterrows():
     total_items = workitems_df[workitems_df["System_IterationPath"] == path]
     total_count = len(total_items)
     completed_count = len(total_items[total_items["Microsoft_VSTS_Common_ClosedDate"].notna()])
-
+    
     burnup_data.append({
         "IterationPath": path,
         "FinishDate": finish_date,
@@ -170,9 +170,12 @@ for _, iteration in iterations_df.iterrows():
     })
 
 burnup_df = pd.DataFrame(burnup_data).sort_values("FinishDate")
+
+# Cumulative values across iterations (burn-up over time)
 burnup_df["CumulativeTotal"] = burnup_df["TotalStories"].cumsum()
 burnup_df["CumulativeCompleted"] = burnup_df["CompletedStories"].cumsum()
 
+# Plotly chart
 fig_burnup = px.line(
     burnup_df,
     x="FinishDate",
@@ -183,44 +186,8 @@ fig_burnup = px.line(
 )
 fig_burnup.update_traces(mode="lines+markers")
 fig_burnup.update_layout(legend_title_text="Metric", legend=dict(x=0.05, y=0.95))
+
 st.plotly_chart(fig_burnup, use_container_width=True)
-
-# ---------------------------------------------
-# BURN-UP CHART (Effort Points)
-# ---------------------------------------------
-st.subheader("Burn-Up Chart (Effort Points)")
-
-burnup_effort_data = []
-for _, iteration in iterations_df.iterrows():
-    path = iteration["path"]
-    finish_date = iteration["finishDate"]
-    it_items = workitems_df[workitems_df["System_IterationPath"] == path]
-
-    total_effort = it_items.get("StoryPoints", pd.Series([0]*len(it_items))).fillna(0).sum()
-    completed_effort = it_items.loc[it_items["Microsoft_VSTS_Common_ClosedDate"].notna(), "StoryPoints"].fillna(0).sum()
-
-    burnup_effort_data.append({
-        "IterationPath": path,
-        "FinishDate": finish_date,
-        "TotalEffort": total_effort,
-        "CompletedEffort": completed_effort
-    })
-
-burnup_effort_df = pd.DataFrame(burnup_effort_data).sort_values("FinishDate")
-burnup_effort_df["CumulativeTotal"] = burnup_effort_df["TotalEffort"].cumsum()
-burnup_effort_df["CumulativeCompleted"] = burnup_effort_df["CompletedEffort"].cumsum()
-
-fig_burnup_effort = px.line(
-    burnup_effort_df,
-    x="FinishDate",
-    y=["CumulativeTotal", "CumulativeCompleted"],
-    markers=True,
-    title="Burn-Up Chart (Cumulative Effort Points)",
-    labels={"value": "Effort Points", "FinishDate": "Iteration Finish Date"},
-)
-fig_burnup_effort.update_traces(mode="lines+markers")
-fig_burnup_effort.update_layout(legend_title_text="Metric", legend=dict(x=0.05, y=0.95))
-st.plotly_chart(fig_burnup_effort, use_container_width=True)
 
 # ---------------------------------------------
 # DETAILS SECTION
