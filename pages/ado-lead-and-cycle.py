@@ -36,7 +36,8 @@ try:
         "System_CreatedDate": 1,
         "Microsoft_VSTS_Common_ClosedDate": 1,
         "System_IterationPath": 1,
-        "System_WorkItemType": 1
+        "System_WorkItemType": 1,
+        "Microsoft_VSTS_Scheduling_Effort": 1
     }))
 except Exception as e:
     st.error(f"Error loading data from MongoDB: {e}")
@@ -197,6 +198,53 @@ fig_burnup.update_traces(mode="lines+markers")
 fig_burnup.update_layout(legend_title_text="Metric", legend=dict(x=0.05, y=0.95))
 
 st.plotly_chart(fig_burnup, use_container_width=True)
+
+# ---------------------------------------------
+# BURN-UP CHART (EFFORT-BASED)
+# ---------------------------------------------
+if "Microsoft_VSTS_Scheduling_Effort" in workitems_df.columns:
+    st.subheader("Burn-Up Chart (Effort / Story Points)")
+
+    burnup_effort_data = []
+    for _, iteration in iterations_df.iterrows():
+        path = iteration["path"]
+        finish_date = iteration["finishDate"]
+        iteration_items = workitems_df[workitems_df["System_IterationPath"] == path]
+
+        total_effort = iteration_items["Microsoft_VSTS_Scheduling_Effort"].sum(skipna=True)
+        completed_effort = iteration_items.loc[
+            iteration_items["Microsoft_VSTS_Common_ClosedDate"].notna(), "Microsoft_VSTS_Scheduling_Effort"
+        ].sum(skipna=True)
+
+        burnup_effort_data.append({
+            "IterationPath": path,
+            "FinishDate": finish_date,
+            "TotalEffort": total_effort,
+            "CompletedEffort": completed_effort
+        })
+
+    burnup_effort_df = pd.DataFrame(burnup_effort_data).sort_values("FinishDate")
+
+    # Cumulative effort over iterations
+    burnup_effort_df["CumulativeTotal"] = burnup_effort_df["TotalEffort"].cumsum()
+    burnup_effort_df["CumulativeCompleted"] = burnup_effort_df["CompletedEffort"].cumsum()
+
+    # Plotly chart
+    fig_effort = px.line(
+        burnup_effort_df,
+        x="FinishDate",
+        y=["CumulativeTotal", "CumulativeCompleted"],
+        markers=True,
+        title="Burn-Up Chart (Cumulative Effort / Story Points)",
+        labels={"value": "Effort / Story Points", "FinishDate": "Iteration Finish Date"},
+    )
+    fig_effort.update_traces(mode="lines+markers")
+    fig_effort.update_layout(legend_title_text="Metric", legend=dict(x=0.05, y=0.95))
+
+    st.plotly_chart(fig_effort, use_container_width=True)
+else:
+    st.info("No effort field found in work items for effort-based burn-up chart.")
+
 
 # ---------------------------------------------
 # DETAILS SECTION
