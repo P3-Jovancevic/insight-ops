@@ -293,7 +293,7 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
         y=["Done", "In Progress", "To Do"],  # Done at bottom, To Do on top
         title="Cumulative Flow Diagram (User Stories / PBIs)",
         labels={"value": "Number of Stories", "Date": "Date", "variable": "State"},
-        color_discrete_map={"To Do": "#636EFA", "In Progress": "#EF553B", "Done": "#00CC96"}
+        color_discrete_map={"Done": "green", "In Progress": "blue", "To Do": "gray"}
     )
     st.plotly_chart(fig_cfd, use_container_width=True)
 
