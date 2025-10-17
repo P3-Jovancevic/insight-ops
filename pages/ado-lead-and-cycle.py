@@ -368,6 +368,48 @@ else:
     st.plotly_chart(fig_cfd, use_container_width=True)
 
 # ---------------------------------------------
+# ESTIMATE ACCURACY SCORECARDS
+# ---------------------------------------------
+# Only consider work items with effort and activated/closed dates
+effort_items = workitems_df.dropna(subset=["Microsoft_VSTS_Scheduling_Effort", "Microsoft_VSTS_Common_ActivatedDate", "Microsoft_VSTS_Common_ClosedDate"]).copy()
+
+# Calculate actual cycle time in days
+effort_items["ActualCycleDays"] = (effort_items["Microsoft_VSTS_Common_ClosedDate"] - effort_items["Microsoft_VSTS_Common_ActivatedDate"]).dt.days
+
+# Exclude items with zero or negative cycle time
+effort_items = effort_items[effort_items["ActualCycleDays"] > 0]
+
+# Calculate Estimate Accuracy = Effort / ActualCycleDays
+effort_items["EstimateAccuracy"] = effort_items["Microsoft_VSTS_Scheduling_Effort"] / effort_items["ActualCycleDays"]
+
+# Overall Estimate Accuracy
+overall_estimate_accuracy = effort_items["EstimateAccuracy"].mean() if not effort_items.empty else None
+
+# Last Iteration Estimate Accuracy
+last_iter_path = latest_iteration["path"]
+last_iter_items = effort_items[effort_items["System_IterationPath"] == last_iter_path]
+last_iter_estimate_accuracy = last_iter_items["EstimateAccuracy"].mean() if not last_iter_items.empty else None
+
+# ---------------------------------------------
+# DISPLAY ESTIMATE ACCURACY SCORECARDS
+# ---------------------------------------------
+st.subheader("Estimate Accuracy (Planned Effort / Actual Cycle Time)")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        label="Overall Estimate Accuracy",
+        value=f"{overall_estimate_accuracy:.2f}" if overall_estimate_accuracy else "N/A"
+    )
+
+with col2:
+    st.metric(
+        label=f"Estimate Accuracy (Last Iteration: {last_iter_path.split('\\')[-1]})",
+        value=f"{last_iter_estimate_accuracy:.2f}" if last_iter_estimate_accuracy else "N/A"
+    )
+
+# ---------------------------------------------
 # DETAILS SECTION
 # ---------------------------------------------
 with st.expander("See data details"):
