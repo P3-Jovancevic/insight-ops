@@ -44,8 +44,9 @@ workitems_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(workitems_df["
 # ---------------------------------------------
 # FILTER RELEVANT WORK ITEM TYPES
 # ---------------------------------------------
-allowed_types = ["User Story", "PBI", "Product Backlog Item"]
-workitems_df = workitems_df[workitems_df["System_WorkItemType"].isin(allowed_types)]
+if "System_WorkItemType" in workitems_df.columns:
+    allowed_types = ["User Story", "PBI", "Product Backlog Item"]
+    workitems_df = workitems_df[workitems_df["System_WorkItemType"].isin(allowed_types)]
 
 # ---------------------------------------------
 # LEAD TIME & CYCLE TIME CALCULATION
