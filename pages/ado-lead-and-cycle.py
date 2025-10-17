@@ -370,42 +370,44 @@ else:
 # ---------------------------------------------
 # ESTIMATE ACCURACY SCORECARDS
 # ---------------------------------------------
-# Only consider work items with effort and activated/closed dates
-effort_items = workitems_df.dropna(subset=["Microsoft_VSTS_Scheduling_Effort", "Microsoft_VSTS_Common_ActivatedDate", "Microsoft_VSTS_Common_ClosedDate"]).copy()
+# Compute cycle time per story (days between ActivatedDate and ClosedDate)
+workitems_df["ActivatedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ActivatedDate"), utc=True, errors="coerce")
+workitems_df["ClosedDate"] = workitems_df["Microsoft_VSTS_Common_ClosedDate"]
 
-# Calculate actual cycle time in days
-effort_items["ActualCycleDays"] = (effort_items["Microsoft_VSTS_Common_ClosedDate"] - effort_items["Microsoft_VSTS_Common_ActivatedDate"]).dt.days
+def calc_cycle_time_effort(row):
+    start = row["ActivatedDate"]
+    end = row["ClosedDate"]
+    effort = row.get("Microsoft_VSTS_Scheduling_Effort", 0)
+    if pd.isna(start) or pd.isna(end) or not effort or effort == 0:
+        return None
+    return (end - start).days / effort if effort else None
 
-# Exclude items with zero or negative cycle time
-effort_items = effort_items[effort_items["ActualCycleDays"] > 0]
-
-# Calculate Estimate Accuracy = Effort / ActualCycleDays
-effort_items["EstimateAccuracy"] = effort_items["Microsoft_VSTS_Scheduling_Effort"] / effort_items["ActualCycleDays"]
+workitems_df["EstimateAccuracy"] = workitems_df.apply(calc_cycle_time_effort, axis=1)
 
 # Overall Estimate Accuracy
-overall_estimate_accuracy = effort_items["EstimateAccuracy"].mean() if not effort_items.empty else None
+valid_estimates = workitems_df["EstimateAccuracy"].dropna()
+overall_estimate_accuracy = valid_estimates.mean() if not valid_estimates.empty else None
 
 # Last Iteration Estimate Accuracy
 last_iter_path = latest_iteration["path"]
-last_iter_items = effort_items[effort_items["System_IterationPath"] == last_iter_path]
-last_iter_estimate_accuracy = last_iter_items["EstimateAccuracy"].mean() if not last_iter_items.empty else None
+last_iter_items = workitems_df[workitems_df["System_IterationPath"] == last_iter_path]
+last_iter_estimates = last_iter_items["EstimateAccuracy"].dropna()
+last_iter_estimate_accuracy = last_iter_estimates.mean() if not last_iter_estimates.empty else None
 
-# ---------------------------------------------
-# DISPLAY ESTIMATE ACCURACY SCORECARDS
-# ---------------------------------------------
-st.subheader("Estimate Accuracy (Planned Effort / Actual Cycle Time)")
+last_iter_name = last_iter_path.split("\\")[-1]
 
+st.subheader("Estimate Accuracy (Cycle Time / Story Points)")
 col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
-        label="Overall Estimate Accuracy",
+        label="Overall Estimate Accuracy (All User Stories)",
         value=f"{overall_estimate_accuracy:.2f}" if overall_estimate_accuracy else "N/A"
     )
 
 with col2:
     st.metric(
-        label=f"Estimate Accuracy (Last Iteration: {last_iter_path.split('\\\\')[-1]})",
+        label=f"Estimate Accuracy (Last Iteration: {last_iter_name})",
         value=f"{last_iter_estimate_accuracy:.2f}" if last_iter_estimate_accuracy else "N/A"
     )
 
