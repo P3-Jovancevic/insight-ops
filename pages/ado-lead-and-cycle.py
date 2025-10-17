@@ -35,7 +35,11 @@ try:
         "_id": 0,
         "System_CreatedDate": 1,
         "Microsoft_VSTS_Common_ClosedDate": 1,
-        "System_IterationPath": 1
+        "System_IterationPath": 1,
+        # keep other fields unchanged for future changes (like effort) if present
+        "System_WorkItemType": 1,
+        "Microsoft_VSTS_Scheduling_Effort": 1,
+        "StoryPoints": 1
     }))
 except Exception as e:
     st.error(f"Error loading data from MongoDB: {e}")
@@ -51,13 +55,17 @@ if not iterations or not workitems:
 iterations_df = pd.DataFrame(iterations)
 workitems_df = pd.DataFrame(workitems)
 
-# Convert string dates to UTC datetime
-iterations_df["startDate"] = pd.to_datetime(iterations_df["startDate"], utc=True, errors="coerce")
-iterations_df["finishDate"] = pd.to_datetime(iterations_df["finishDate"], utc=True, errors="coerce")
-workitems_df["System_CreatedDate"] = pd.to_datetime(workitems_df["System_CreatedDate"], utc=True, errors="coerce")
-workitems_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(workitems_df["Microsoft_VSTS_Common_ClosedDate"], utc=True, errors="coerce")
+# Safe datetime conversion helper
+def safe_to_datetime(series):
+    return pd.to_datetime(series, utc=True, errors="coerce")
 
-# Drop work items with missing created date
+# Convert string dates to UTC datetime
+iterations_df["startDate"] = safe_to_datetime(iterations_df.get("startDate"))
+iterations_df["finishDate"] = safe_to_datetime(iterations_df.get("finishDate"))
+workitems_df["System_CreatedDate"] = safe_to_datetime(workitems_df.get("System_CreatedDate"))
+workitems_df["Microsoft_VSTS_Common_ClosedDate"] = safe_to_datetime(workitems_df.get("Microsoft_VSTS_Common_ClosedDate"))
+
+# Drop work items with missing created date (consistent with previous behavior)
 workitems_df = workitems_df.dropna(subset=["System_CreatedDate"])
 
 # ---------------------------------------------
@@ -65,38 +73,29 @@ workitems_df = workitems_df.dropna(subset=["System_CreatedDate"])
 # ---------------------------------------------
 iteration_start_map = iterations_df.set_index("path")["startDate"].to_dict()
 
-# Add Cycle Start Date to each work item
-def get_iteration_start(row):
-    iteration_path = row["System_IterationPath"]
-    return iteration_start_map.get(iteration_path, pd.NaT)
+# Add Cycle Start Date to each work item (vectorized map)
+workitems_df["IterationStartDate"] = workitems_df["System_IterationPath"].map(iteration_start_map)
 
-workitems_df["IterationStartDate"] = workitems_df.apply(get_iteration_start, axis=1)
-
-# Exclude work items without valid iteration start
+# Exclude work items without valid iteration start (same as before)
 workitems_df = workitems_df.dropna(subset=["IterationStartDate"])
 
 # ---------------------------------------------
-# CALCULATE LEAD TIME AND CYCLE TIME
+# CALCULATE LEAD TIME AND CYCLE TIME (VECTORIZED)
 # ---------------------------------------------
 now = datetime.now(timezone.utc)
 
-def calc_lead_time(row):
-    closed = row["Microsoft_VSTS_Common_ClosedDate"]
-    created = row["System_CreatedDate"]
-    if pd.isna(created):
-        return None
-    return (closed - created).days if not pd.isna(closed) else (now - created).days
+# Ensure closed date column exists; already converted above
+# For Lead Time: if ClosedDate is present, use (Closed - Created), else use (now - Created)
+closed_filled_for_lead = workitems_df["Microsoft_VSTS_Common_ClosedDate"].fillna(pd.Timestamp(now, tz=timezone.utc))
+lead_timedelta = closed_filled_for_lead - workitems_df["System_CreatedDate"]
+workitems_df["LeadTimeDays"] = lead_timedelta.dt.days
 
-def calc_cycle_time(row):
-    closed = row["Microsoft_VSTS_Common_ClosedDate"]
-    start = row["IterationStartDate"]
-    if pd.isna(start):
-        return None
-    return (closed - start).days if not pd.isna(closed) else (now - start).days
+# For Cycle Time: if ClosedDate present, use (Closed - IterationStart), else use (now - IterationStart)
+closed_filled_for_cycle = workitems_df["Microsoft_VSTS_Common_ClosedDate"].fillna(pd.Timestamp(now, tz=timezone.utc))
+cycle_timedelta = closed_filled_for_cycle - workitems_df["IterationStartDate"]
+workitems_df["CycleTimeDays"] = cycle_timedelta.dt.days
 
-workitems_df["LeadTimeDays"] = workitems_df.apply(calc_lead_time, axis=1)
-workitems_df["CycleTimeDays"] = workitems_df.apply(calc_cycle_time, axis=1)
-
+# If you prefer to treat negative durations (if any) as NaN, you can filter them out later when summarizing.
 # ---------------------------------------------
 # FIND LATEST ITERATION
 # ---------------------------------------------
@@ -110,7 +109,7 @@ cutoff_date = latest_finish - timedelta(days=30)
 # Lead Time
 overall_lead_time = workitems_df["LeadTimeDays"].mean()
 recent_lead_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
-recent_lead_time = recent_lead_items["LeadTimeDays"].mean() if not recent_lead_items.empty else None
+recent_le_time = recent_le_items["LeadTimeDays"].mean() if not recent_le_items.empty else None
 
 # Cycle Time
 overall_cycle_time = workitems_df["CycleTimeDays"].mean()
@@ -126,13 +125,13 @@ col1, col2 = st.columns(2)
 with col1:
     st.metric(
         label="Overall Lead Time (All Work Items)",
-        value=f"{overall_lead_time:.2f} days" if overall_lead_time else "N/A"
+        value=f"{overall_le_time:.2f} days" if overall_le_time else "N/A"
     )
 
 with col2:
     st.metric(
         label="Lead Time (Last 30 Days of Development)",
-        value=f"{recent_lead_time:.2f} days" if recent_lead_time else "N/A"
+        value=f"{recent_le_time:.2f} days" if recent_le_time else "N/A"
     )
 
 col3, col4 = st.columns(2)
