@@ -10,188 +10,234 @@ import plotly.express as px
 st.title("Lead Time, Cycle Time & Burn-Up Summary")
 
 # ---------------------------------------------
-# DATABASE CONNECTION
+# CONNECT TO MONGO
 # ---------------------------------------------
-mongo_uri = st.secrets["mongo"]["uri"]
-client = MongoClient(mongo_uri)
-db = client["insight-ops"]
+try:
+    mongo_uri = st.secrets["mongo"]["uri"]
+    db_name = st.secrets["mongo"]["db_name"]
 
-# ---------------------------------------------
-# LOAD DATA FROM MONGODB
-# ---------------------------------------------
-iterations_collection = db["ado-iterations"]
-workitems_collection = db["ado-workitems"]
+    client = MongoClient(mongo_uri)
+    db = client[db_name]
 
-iterations = list(iterations_collection.find())
-workitems = list(workitems_collection.find())
+    iterations_col = db["ado-iterations"]
+    workitems_col = db["ado-workitems"]
 
-if not iterations or not workitems:
-    st.warning("No iteration or work item data found.")
+except Exception as e:
+    st.error(f"Failed to connect to MongoDB: {e}")
     st.stop()
 
+# ---------------------------------------------
+# LOAD DATA FROM MONGO
+# ---------------------------------------------
+try:
+    iterations = list(iterations_col.find({}, {"_id": 0, "path": 1, "startDate": 1, "finishDate": 1}))
+    workitems = list(workitems_col.find({}, {
+        "_id": 0,
+        "System_CreatedDate": 1,
+        "Microsoft_VSTS_Common_ClosedDate": 1,
+        "System_IterationPath": 1,
+        "System_WorkItemType": 1
+    }))
+except Exception as e:
+    st.error(f"Error loading data from MongoDB: {e}")
+    st.stop()
+
+if not iterations or not workitems:
+    st.warning("No data found in MongoDB collections.")
+    st.stop()
+
+# ---------------------------------------------
+# CONVERT TO DATAFRAMES AND NORMALIZE DATES
+# ---------------------------------------------
 iterations_df = pd.DataFrame(iterations)
 workitems_df = pd.DataFrame(workitems)
 
-# ---------------------------------------------
-# DATA PREPARATION
-# ---------------------------------------------
-iterations_df["startDate"] = pd.to_datetime(iterations_df["startDate"], errors="coerce")
-iterations_df["finishDate"] = pd.to_datetime(iterations_df["finishDate"], errors="coerce")
+# ✅ FILTER ONLY USER STORIES / PBIs
+valid_types = ["User Story", "PBI", "Product Backlog Item"]
+workitems_df = workitems_df[workitems_df["System_WorkItemType"].isin(valid_types)]
 
-workitems_df["System_CreatedDate"] = pd.to_datetime(workitems_df["System_CreatedDate"], errors="coerce")
-workitems_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(workitems_df["Microsoft_VSTS_Common_ClosedDate"], errors="coerce")
+if workitems_df.empty:
+    st.warning("No User Stories or PBIs found in the work items collection.")
+    st.stop()
+
+# Convert string dates to UTC datetime
+iterations_df["startDate"] = pd.to_datetime(iterations_df["startDate"], utc=True, errors="coerce")
+iterations_df["finishDate"] = pd.to_datetime(iterations_df["finishDate"], utc=True, errors="coerce")
+workitems_df["System_CreatedDate"] = pd.to_datetime(workitems_df["System_CreatedDate"], utc=True, errors="coerce")
+workitems_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(workitems_df["Microsoft_VSTS_Common_ClosedDate"], utc=True, errors="coerce")
+
+# Drop work items with missing created date
+workitems_df = workitems_df.dropna(subset=["System_CreatedDate"])
 
 # ---------------------------------------------
-# FILTER RELEVANT WORK ITEM TYPES
+# CREATE ITERATION START DATE MAPPING
 # ---------------------------------------------
-allowed_types = ["User Story", "PBI", "Product Backlog Item"]
-workitems_df = workitems_df[workitems_df["System_WorkItemType"].isin(allowed_types)]
+iteration_start_map = iterations_df.set_index("path")["startDate"].to_dict()
+
+# Add Cycle Start Date to each work item
+def get_iteration_start(row):
+    iteration_path = row["System_IterationPath"]
+    return iteration_start_map.get(iteration_path, pd.NaT)
+
+workitems_df["IterationStartDate"] = workitems_df.apply(get_iteration_start, axis=1)
+
+# Exclude work items without valid iteration start
+workitems_df = workitems_df.dropna(subset=["IterationStartDate"])
 
 # ---------------------------------------------
-# LEAD TIME & CYCLE TIME CALCULATION
+# CALCULATE LEAD TIME AND CYCLE TIME
 # ---------------------------------------------
 now = datetime.now(timezone.utc)
-closed_filled_for_lead = workitems_df["Microsoft_VSTS_Common_ClosedDate"].fillna(pd.Timestamp(now))
-lead_timedelta = closed_filled_for_lead - workitems_df["System_CreatedDate"]
-workitems_df["LeadTimeDays"] = lead_timedelta.dt.days
 
-workitems_df = workitems_df.merge(
-    iterations_df[["path", "startDate", "finishDate"]],
-    left_on="System_IterationPath",
-    right_on="path",
-    how="left"
-)
+def calc_lead_time(row):
+    closed = row["Microsoft_VSTS_Common_ClosedDate"]
+    created = row["System_CreatedDate"]
+    if pd.isna(created):
+        return None
+    return (closed - created).days if not pd.isna(closed) else (now - created).days
 
-closed_filled_for_cycle = workitems_df["Microsoft_VSTS_Common_ClosedDate"].fillna(pd.Timestamp(now))
-cycle_timedelta = closed_filled_for_cycle - workitems_df["startDate"]
-workitems_df["CycleTimeDays"] = cycle_timedelta.dt.days
+def calc_cycle_time(row):
+    closed = row["Microsoft_VSTS_Common_ClosedDate"]
+    start = row["IterationStartDate"]
+    if pd.isna(start):
+        return None
+    return (closed - start).days if not pd.isna(closed) else (now - start).days
 
-# ---------------------------------------------
-# LEAD & CYCLE TIME AVERAGES BY ITERATION
-# ---------------------------------------------
-lead_cycle_summary = workitems_df.groupby("System_IterationPath", as_index=False).agg({
-    "LeadTimeDays": "mean",
-    "CycleTimeDays": "mean"
-})
-lead_cycle_summary = lead_cycle_summary.round(1)
+workitems_df["LeadTimeDays"] = workitems_df.apply(calc_lead_time, axis=1)
+workitems_df["CycleTimeDays"] = workitems_df.apply(calc_cycle_time, axis=1)
 
 # ---------------------------------------------
-# BURN-UP CALCULATION (STORY COUNT)
+# FIND LATEST ITERATION
 # ---------------------------------------------
-burnup_data = []
-for _, iteration in iterations_df.iterrows():
-    iteration_path = iteration["path"]
-    iteration_end = iteration["finishDate"]
-    iteration_items = workitems_df[workitems_df["System_IterationPath"] == iteration_path]
-
-    total_stories = len(iteration_items)
-    completed_stories = len(iteration_items[
-        iteration_items["Microsoft_VSTS_Common_ClosedDate"] <= iteration_end
-    ])
-
-    burnup_data.append({
-        "Iteration": iteration_path,
-        "EndDate": iteration_end,
-        "TotalStories": total_stories,
-        "CompletedStories": completed_stories
-    })
-
-burnup_df = pd.DataFrame(burnup_data)
+latest_iteration = iterations_df.sort_values(by="finishDate", ascending=False).iloc[0]
+latest_finish = latest_iteration["finishDate"]
+cutoff_date = latest_finish - timedelta(days=30)
 
 # ---------------------------------------------
-# BURN-UP CALCULATION (EFFORT-BASED)
+# CALCULATE METRICS
 # ---------------------------------------------
-effort_field = None
-for candidate in ["Microsoft_VSTS_Scheduling_Effort", "StoryPoints", "Effort"]:
-    if candidate in workitems_df.columns:
-        effort_field = candidate
-        break
+# Lead Time
+overall_lead_time = workitems_df["LeadTimeDays"].mean()
+recent_lead_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
+recent_lead_time = recent_lead_items["LeadTimeDays"].mean() if not recent_lead_items.empty else None
 
-if effort_field:
-    burnup_effort_data = []
-    for _, iteration in iterations_df.iterrows():
-        iteration_path = iteration["path"]
-        iteration_end = iteration["finishDate"]
-        iteration_items = workitems_df[workitems_df["System_IterationPath"] == iteration_path]
-
-        total_effort = iteration_items[effort_field].sum(skipna=True)
-        completed_effort = iteration_items.loc[
-            iteration_items["Microsoft_VSTS_Common_ClosedDate"] <= iteration_end, effort_field
-        ].sum(skipna=True)
-
-        burnup_effort_data.append({
-            "Iteration": iteration_path,
-            "EndDate": iteration_end,
-            "TotalEffort": total_effort,
-            "CompletedEffort": completed_effort
-        })
-
-    burnup_effort_df = pd.DataFrame(burnup_effort_data)
-else:
-    burnup_effort_df = pd.DataFrame()
+# Cycle Time
+overall_cycle_time = workitems_df["CycleTimeDays"].mean()
+recent_cycle_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
+recent_cycle_time = recent_cycle_items["CycleTimeDays"].mean() if not recent_cycle_items.empty else None
 
 # ---------------------------------------------
-# DISPLAY METRICS
+# DISPLAY SCORECARDS
 # ---------------------------------------------
-st.subheader("Average Lead & Cycle Time per Iteration")
-st.dataframe(lead_cycle_summary, use_container_width=True)
+st.subheader("Scorecards")
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        label="Overall Lead Time (All User Stories/PBIs)",
+        value=f"{overall_lead_time:.2f} days" if overall_lead_time else "N/A"
+    )
+
+with col2:
+    st.metric(
+        label="Lead Time (Last 30 Days of Development)",
+        value=f"{recent_lead_time:.2f} days" if recent_lead_time else "N/A"
+    )
+
+col3, col4 = st.columns(2)
+with col3:
+    st.metric(
+        label="Overall Cycle Time (All User Stories/PBIs)",
+        value=f"{overall_cycle_time:.2f} days" if overall_cycle_time else "N/A"
+    )
+
+with col4:
+    st.metric(
+        label="Cycle Time (Last 30 Days of Development)",
+        value=f"{recent_cycle_time:.2f} days" if recent_cycle_time else "N/A"
+    )
 
 # ---------------------------------------------
-# BURN-UP CHART (STORY COUNT)
+# BURN-UP CHART (Story Count)
 # ---------------------------------------------
 st.subheader("Burn-Up Chart (Story Count)")
-fig_story = px.line(
+
+# Aggregate work items per iteration
+burnup_data = []
+for _, iteration in iterations_df.iterrows():
+    path = iteration["path"]
+    finish_date = iteration["finishDate"]
+    total_items = workitems_df[workitems_df["System_IterationPath"] == path]
+    total_count = len(total_items)
+    completed_count = len(total_items[total_items["Microsoft_VSTS_Common_ClosedDate"].notna()])
+    
+    burnup_data.append({
+        "IterationPath": path,
+        "FinishDate": finish_date,
+        "TotalStories": total_count,
+        "CompletedStories": completed_count
+    })
+
+burnup_df = pd.DataFrame(burnup_data).sort_values("FinishDate")
+
+# Cumulative values across iterations (burn-up over time)
+burnup_df["CumulativeTotal"] = burnup_df["TotalStories"].cumsum()
+burnup_df["CumulativeCompleted"] = burnup_df["CompletedStories"].cumsum()
+
+# Plotly chart
+fig_burnup = px.line(
     burnup_df,
-    x="EndDate",
-    y=["CompletedStories", "TotalStories"],
+    x="FinishDate",
+    y=["CumulativeTotal", "CumulativeCompleted"],
     markers=True,
-    labels={
-        "EndDate": "Iteration End Date",
-        "value": "Number of Stories",
-        "variable": "Metric"
-    },
-    title="Burn-Up Progress by Iteration (Stories)"
+    title="Burn-Up Chart (Cumulative User Stories / PBIs)",
+    labels={"value": "User Stories / PBIs", "FinishDate": "Iteration Finish Date"},
 )
-# Add iteration labels
-for i, row in burnup_df.iterrows():
-    fig_story.add_annotation(
-        x=row["EndDate"],
-        y=row["CompletedStories"],
-        text=row["Iteration"].split("\\")[-1],
-        showarrow=False,
-        yshift=10
-    )
+fig_burnup.update_traces(mode="lines+markers")
+fig_burnup.update_layout(legend_title_text="Metric", legend=dict(x=0.05, y=0.95))
 
-st.plotly_chart(fig_story, use_container_width=True)
+st.plotly_chart(fig_burnup, use_container_width=True)
 
 # ---------------------------------------------
-# BURN-UP CHART (EFFORT-BASED)
+# DETAILS SECTION
 # ---------------------------------------------
-if not burnup_effort_df.empty:
-    st.subheader(f"Burn-Up Chart ({effort_field}-Based)")
-    fig_effort = px.line(
-        burnup_effort_df,
-        x="EndDate",
-        y=["CompletedEffort", "TotalEffort"],
-        markers=True,
-        labels={
-            "EndDate": "Iteration End Date",
-            "value": f"Total {effort_field}",
-            "variable": "Metric"
-        },
-        title=f"Burn-Up Progress by Iteration ({effort_field})"
-    )
-    # Add iteration labels
-    for i, row in burnup_effort_df.iterrows():
-        fig_effort.add_annotation(
-            x=row["EndDate"],
-            y=row["CompletedEffort"],
-            text=row["Iteration"].split("\\")[-1],
-            showarrow=False,
-            yshift=10
-        )
+with st.expander("See data details"):
+    st.write("### Latest Iteration")
+    st.dataframe(latest_iteration.to_frame().T)
 
-    st.plotly_chart(fig_effort, use_container_width=True)
-else:
-    st.info("No effort-based field found (e.g., StoryPoints or Effort).")
+    st.write("### Work Items Sample")
+    st.dataframe(workitems_df.head())
 
+    # Lead Time Summary
+    st.write("### Work Item Lead Time Summary")
+    valid_lead_times = workitems_df["LeadTimeDays"].dropna()
+    valid_lead_times = valid_lead_times[valid_lead_times >= 0]
+
+    if not valid_lead_times.empty:
+        stats_lead = {
+            "Min Lead Time (days)": valid_lead_times.min(),
+            "Max Lead Time (days)": valid_lead_times.max(),
+            "Average Lead Time (days)": valid_lead_times.mean(),
+            "Median Lead Time (days)": valid_lead_times.median()
+        }
+        summary_df_lead = pd.DataFrame(list(stats_lead.items()), columns=["Metric", "Value"])
+        st.dataframe(summary_df_lead, use_container_width=True)
+    else:
+        st.info("No valid lead time data available for summary.")
+
+    # Cycle Time Summary
+    st.write("### Work Item Cycle Time Summary")
+    valid_cycle_times = workitems_df["CycleTimeDays"].dropna()
+    valid_cycle_times = valid_cycle_times[valid_cycle_times >= 0]
+
+    if not valid_cycle_times.empty:
+        stats_cycle = {
+            "Min Cycle Time (days)": valid_cycle_times.min(),
+            "Max Cycle Time (days)": valid_cycle_times.max(),
+            "Average Cycle Time (days)": valid_cycle_times.mean(),
+            "Median Cycle Time (days)": valid_cycle_times.median()
+        }
+        summary_df_cycle = pd.DataFrame(list(stats_cycle.items()), columns=["Metric", "Value"])
+        st.dataframe(summary_df_cycle, use_container_width=True)
+    else:
+        st.info("No valid cycle time data available for summary.")
