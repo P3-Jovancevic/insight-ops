@@ -261,27 +261,29 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
     )
 
     # Determine date range
-    min_date = workitems_df["System_CreatedDate"].min().normalize()
+    min_date = workitems_df["System_CreatedDate"].min()
     max_date_candidates = [
         workitems_df["Microsoft_VSTS_Common_ClosedDate"].max(),
         workitems_df["Microsoft_VSTS_Common_ActivatedDate"].max()
     ]
-    max_date = max([d for d in max_date_candidates if pd.notna(d)]).normalize()
+    max_date = max([d for d in max_date_candidates if pd.notna(d)])
     date_range = pd.date_range(start=min_date, end=max_date, freq="D")
 
     cfd_data = []
 
     for current_date in date_range:
-        # Compare only dates (ignore time) to fix off-by-one
-        todo_count = ((workitems_df["System_CreatedDate"].dt.date <= current_date.date()) &
-                      ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].isna()) |
-                       (workitems_df["Microsoft_VSTS_Common_ActivatedDate"].dt.date > current_date.date()))).sum()
+        done_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].notna()) &
+                      (workitems_df["Microsoft_VSTS_Common_ClosedDate"].notna()) &
+                      (workitems_df["Microsoft_VSTS_Common_ActivatedDate"] <= current_date) &
+                      (workitems_df["Microsoft_VSTS_Common_ClosedDate"] <= current_date)).sum()
 
-        in_progress_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].dt.date <= current_date.date()) &
+        in_progress_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].notna()) &
                              ((workitems_df["Microsoft_VSTS_Common_ClosedDate"].isna()) |
-                              (workitems_df["Microsoft_VSTS_Common_ClosedDate"].dt.date > current_date.date()))).sum()
+                              (workitems_df["Microsoft_VSTS_Common_ClosedDate"] > current_date)) &
+                             (workitems_df["Microsoft_VSTS_Common_ActivatedDate"] <= current_date)).sum()
 
-        done_count = (workitems_df["Microsoft_VSTS_Common_ClosedDate"].dt.date <= current_date.date()).sum()
+        total_stories = len(workitems_df)
+        todo_count = total_stories - done_count - in_progress_count
 
         cfd_data.append({
             "Date": current_date,
@@ -292,19 +294,19 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
 
     cfd_df = pd.DataFrame(cfd_data)
 
-    # Plot CFD as stacked area chart: Done bottom, In Progress middle, To Do top
+    # Plot CFD as stacked area chart with reversed stack order
     fig_cfd = px.area(
         cfd_df,
         x="Date",
-        y=["Done", "In Progress", "To Do"],
+        y=["Done", "In Progress", "To Do"],  # Done at bottom, To Do on top
         title="Cumulative Flow Diagram (User Stories / PBIs)",
         labels={"value": "Number of Stories", "Date": "Date", "variable": "State"},
         color_discrete_map={"Done": "green", "In Progress": "blue", "To Do": "gray"}
     )
     st.plotly_chart(fig_cfd, use_container_width=True)
-
 else:
     st.info("Activated date field not found. Cannot generate Cumulative Flow Diagram.")
+
 
 # ---------------------------------------------
 # CUMULATIVE FLOW DIAGRAM (EFFORT-BASED)
@@ -315,35 +317,34 @@ effort_field = "Microsoft_VSTS_Scheduling_Effort"
 if effort_field not in workitems_df.columns:
     st.info("No effort field found for CFD.")
 else:
+    # Use activated date for 'In Progress', closed date for 'Done'
     workitems_df["ActivatedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ActivatedDate"), utc=True, errors="coerce")
     workitems_df["ClosedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ClosedDate"), utc=True, errors="coerce")
 
-    # Daily range
     min_date = workitems_df["System_CreatedDate"].min().normalize()
     max_date = workitems_df[["System_CreatedDate", "ActivatedDate", "ClosedDate"]].max().max().normalize()
     date_range = pd.date_range(start=min_date, end=max_date, freq="D")
 
     cfd_data = []
+
     for current_date in date_range:
-        # Compare only dates
         done_effort = workitems_df.loc[
-            workitems_df["ClosedDate"].notna() &
-            (workitems_df["ClosedDate"].dt.date <= current_date.date()),
+            (workitems_df["ActivatedDate"].notna()) &
+            (workitems_df["ClosedDate"].notna()) &
+            (workitems_df["ActivatedDate"] <= current_date) &
+            (workitems_df["ClosedDate"] <= current_date),
             effort_field
         ].sum(skipna=True)
 
         in_progress_effort = workitems_df.loc[
-            workitems_df["ActivatedDate"].notna() &
-            (workitems_df["ActivatedDate"].dt.date <= current_date.date()) &
-            ((workitems_df["ClosedDate"].isna()) | (workitems_df["ClosedDate"].dt.date > current_date.date())),
+            (workitems_df["ActivatedDate"].notna()) &
+            ((workitems_df["ClosedDate"].isna()) | (workitems_df["ClosedDate"] > current_date)) &
+            (workitems_df["ActivatedDate"] <= current_date),
             effort_field
         ].sum(skipna=True)
 
-        todo_effort = workitems_df.loc[
-            (workitems_df["System_CreatedDate"].dt.date <= current_date.date()) &
-            ((workitems_df["ActivatedDate"].isna()) | (workitems_df["ActivatedDate"].dt.date > current_date.date())),
-            effort_field
-        ].sum(skipna=True)
+        total_effort = workitems_df[effort_field].sum(skipna=True)
+        todo_effort = total_effort - done_effort - in_progress_effort
 
         cfd_data.append({
             "Date": current_date,
@@ -354,8 +355,8 @@ else:
 
     cfd_df = pd.DataFrame(cfd_data)
 
-    # Plot stacked area chart (Done bottom, In Progress middle, To Do top)
-    fig_cfd_effort = px.area(
+    # Plot area chart (stacked), Done at bottom
+    fig_cfd = px.area(
         cfd_df,
         x="Date",
         y=["Done", "In Progress", "To Do"],
@@ -364,7 +365,7 @@ else:
         color_discrete_map={"Done": "green", "In Progress": "blue", "To Do": "gray"}
     )
 
-    st.plotly_chart(fig_cfd_effort, use_container_width=True)
+    st.plotly_chart(fig_cfd, use_container_width=True)
 
 # ---------------------------------------------
 # ESTIMATE ACCURACY SCORECARDS
