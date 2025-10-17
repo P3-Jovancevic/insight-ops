@@ -37,7 +37,8 @@ try:
         "Microsoft_VSTS_Common_ClosedDate": 1,
         "System_IterationPath": 1,
         "System_WorkItemType": 1,
-        "Microsoft_VSTS_Scheduling_Effort": 1
+        "Microsoft_VSTS_Scheduling_Effort": 1,
+        "Microsoft_VSTS_Common_ActivatedDate": 1
     }))
 except Exception as e:
     st.error(f"Error loading data from MongoDB: {e}")
