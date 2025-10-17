@@ -245,6 +245,62 @@ if "Microsoft_VSTS_Scheduling_Effort" in workitems_df.columns:
 else:
     st.info("No effort field found in work items for effort-based burn-up chart.")
 
+# ---------------------------------------------
+# CUMULATIVE FLOW DIAGRAM (CFD)
+# ---------------------------------------------
+st.subheader("Cumulative Flow Diagram (CFD)")
+
+# Ensure activated date exists
+if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
+    # Convert to datetime
+    workitems_df["Microsoft_VSTS_Common_ActivatedDate"] = pd.to_datetime(
+        workitems_df["Microsoft_VSTS_Common_ActivatedDate"], utc=True, errors="coerce"
+    )
+
+    # Determine earliest and latest date for x-axis
+    min_date = workitems_df["System_CreatedDate"].min()
+    max_date_candidates = [workitems_df["Microsoft_VSTS_Common_ClosedDate"].max(),
+                           workitems_df["Microsoft_VSTS_Common_ActivatedDate"].max()]
+    max_date = max([d for d in max_date_candidates if pd.notna(d)])
+
+    # Generate date range
+    date_range = pd.date_range(start=min_date, end=max_date, freq="D")
+
+    cfd_data = []
+
+    for current_date in date_range:
+        todo_count = ((workitems_df["System_CreatedDate"] <= current_date) &
+                      ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].isna()) |
+                       (workitems_df["Microsoft_VSTS_Common_ActivatedDate"] > current_date))).sum()
+
+        in_progress_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"] <= current_date) &
+                             ((workitems_df["Microsoft_VSTS_Common_ClosedDate"].isna()) |
+                              (workitems_df["Microsoft_VSTS_Common_ClosedDate"] > current_date))).sum()
+
+        done_count = (workitems_df["Microsoft_VSTS_Common_ClosedDate"] <= current_date).sum()
+
+        cfd_data.append({
+            "Date": current_date,
+            "To Do": todo_count,
+            "In Progress": in_progress_count,
+            "Done": done_count
+        })
+
+    cfd_df = pd.DataFrame(cfd_data)
+
+    # Plot CFD as stacked area chart
+    fig_cfd = px.area(
+        cfd_df,
+        x="Date",
+        y=["To Do", "In Progress", "Done"],
+        title="Cumulative Flow Diagram (User Stories / PBIs)",
+        labels={"value": "Number of Stories", "Date": "Date", "variable": "State"},
+        color_discrete_map={"To Do": "#636EFA", "In Progress": "#EF553B", "Done": "#00CC96"}
+    )
+    st.plotly_chart(fig_cfd, use_container_width=True)
+
+else:
+    st.info("Activated date field not found. Cannot generate Cumulative Flow Diagram.")
 
 # ---------------------------------------------
 # DETAILS SECTION
