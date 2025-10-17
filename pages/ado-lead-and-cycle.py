@@ -35,7 +35,8 @@ try:
         "_id": 0,
         "System_CreatedDate": 1,
         "Microsoft_VSTS_Common_ClosedDate": 1,
-        "System_IterationPath": 1
+        "System_IterationPath": 1,
+        "System_WorkItemType": 1
     }))
 except Exception as e:
     st.error(f"Error loading data from MongoDB: {e}")
@@ -50,6 +51,14 @@ if not iterations or not workitems:
 # ---------------------------------------------
 iterations_df = pd.DataFrame(iterations)
 workitems_df = pd.DataFrame(workitems)
+
+# ✅ FILTER ONLY USER STORIES / PBIs
+valid_types = ["User Story", "PBI", "Product Backlog Item"]
+workitems_df = workitems_df[workitems_df["System_WorkItemType"].isin(valid_types)]
+
+if workitems_df.empty:
+    st.warning("No User Stories or PBIs found in the work items collection.")
+    st.stop()
 
 # Convert string dates to UTC datetime
 iterations_df["startDate"] = pd.to_datetime(iterations_df["startDate"], utc=True, errors="coerce")
@@ -125,7 +134,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
-        label="Overall Lead Time (All Work Items)",
+        label="Overall Lead Time (All User Stories/PBIs)",
         value=f"{overall_lead_time:.2f} days" if overall_lead_time else "N/A"
     )
 
@@ -138,7 +147,7 @@ with col2:
 col3, col4 = st.columns(2)
 with col3:
     st.metric(
-        label="Overall Cycle Time (All Work Items)",
+        label="Overall Cycle Time (All User Stories/PBIs)",
         value=f"{overall_cycle_time:.2f} days" if overall_cycle_time else "N/A"
     )
 
@@ -181,8 +190,8 @@ fig_burnup = px.line(
     x="FinishDate",
     y=["CumulativeTotal", "CumulativeCompleted"],
     markers=True,
-    title="Burn-Up Chart (Cumulative User Stories)",
-    labels={"value": "User Stories", "FinishDate": "Iteration Finish Date"},
+    title="Burn-Up Chart (Cumulative User Stories / PBIs)",
+    labels={"value": "User Stories / PBIs", "FinishDate": "Iteration Finish Date"},
 )
 fig_burnup.update_traces(mode="lines+markers")
 fig_burnup.update_layout(legend_title_text="Metric", legend=dict(x=0.05, y=0.95))
