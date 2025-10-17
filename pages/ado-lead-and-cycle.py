@@ -405,7 +405,7 @@ with col1:
 
 with col2:
     st.metric(
-        label=f"Estimate Accuracy (Last Iteration: {last_iter_path.split('\\')[-1]})",
+        label=f"Estimate Accuracy (Last Iteration: {last_iter_path.split('\\\\')[-1]})",
         value=f"{last_iter_estimate_accuracy:.2f}" if last_iter_estimate_accuracy else "N/A"
     )
 
