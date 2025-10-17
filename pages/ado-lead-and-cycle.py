@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from pymongo import MongoClient
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import plotly.express as px
 
 # ---------------------------------------------
@@ -43,23 +43,14 @@ for col in date_columns:
     if col in workitems_df.columns:
         workitems_df[col] = pd.to_datetime(workitems_df[col], errors="coerce")
 
-now = datetime.now(timezone.utc)
-
-# ---------------------------------------------
-# VECTORIZED CALCULATIONS
-# ---------------------------------------------
-closed_filled_for_lead = workitems_df["Microsoft_VSTS_Common_ClosedDate"].fillna(pd.Timestamp(now))
-lead_timedelta = closed_filled_for_lead - workitems_df["System_CreatedDate"]
-workitems_df["LeadTimeDays"] = lead_timedelta.dt.days
-
-closed_filled_for_cycle = workitems_df["Microsoft_VSTS_Common_ClosedDate"].fillna(pd.Timestamp(now))
-cycle_timedelta = closed_filled_for_cycle - workitems_df["IterationStartDate"]
-workitems_df["CycleTimeDays"] = cycle_timedelta.dt.days
-
 # ---------------------------------------------
 # FILTER RELEVANT WORK ITEMS
 # ---------------------------------------------
-workitems_df = workitems_df[workitems_df["System_WorkItemType"] == "User Story"]
+# Keep only relevant work item types (User Story, PBI, or Product Backlog Item)
+valid_types = ["User Story", "PBI", "Product Backlog Item"]
+workitems_df = workitems_df[workitems_df["System_WorkItemType"].isin(valid_types)]
+
+# Drop rows missing key data
 workitems_df = workitems_df.dropna(subset=["IterationPath", "System_CreatedDate"])
 
 # ---------------------------------------------
@@ -78,18 +69,41 @@ else:
     st.stop()
 
 # ---------------------------------------------
+# LEAD TIME & CYCLE TIME CALCULATIONS
+# ---------------------------------------------
+now = datetime.now(timezone.utc)
+
+merged_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(
+    merged_df["Microsoft_VSTS_Common_ClosedDate"], errors="coerce"
+)
+merged_df["IterationStartDate"] = pd.to_datetime(
+    merged_df["IterationStartDate"], errors="coerce"
+)
+
+# Lead Time: Closed - Created
+merged_df["LeadTimeDays"] = (
+    merged_df["Microsoft_VSTS_Common_ClosedDate"].fillna(now) - merged_df["System_CreatedDate"]
+).dt.days
+
+# Cycle Time: Closed - Iteration Start
+merged_df["CycleTimeDays"] = (
+    merged_df["Microsoft_VSTS_Common_ClosedDate"].fillna(now) - merged_df["IterationStartDate"]
+).dt.days
+
+# ---------------------------------------------
 # BURN-UP CHART PREPARATION
 # ---------------------------------------------
 merged_df["EndDate"] = pd.to_datetime(merged_df["EndDate"], errors="coerce")
 merged_df["ClosedDate"] = pd.to_datetime(merged_df["Microsoft_VSTS_Common_ClosedDate"], errors="coerce")
 
-# Group by Iteration and count effort and closed items
+# Ensure Effort column exists and is numeric
 effort_col = "Microsoft_VSTS_Scheduling_Effort"
 if effort_col in merged_df.columns:
     merged_df[effort_col] = pd.to_numeric(merged_df[effort_col], errors="coerce").fillna(0)
 else:
     merged_df[effort_col] = 0
 
+# Group by Iteration and calculate aggregates
 iteration_summary = (
     merged_df.groupby("IterationPath")
     .agg(
@@ -114,7 +128,7 @@ st.dataframe(
 )
 
 # ---------------------------------------------
-# BURN-UP CHART
+# BURN-UP CHART (Effort)
 # ---------------------------------------------
 st.subheader("Burn-Up Chart (Effort)")
 fig = px.line(
@@ -141,14 +155,14 @@ count_summary = (
 
 count_summary = count_summary.sort_values("IterationPath", ascending=True)
 
-st.subheader("Burn-Up Chart (User Story Count)")
+st.subheader("Burn-Up Chart (User Story, PBI, and Product Backlog Item Count)")
 fig2 = px.line(
     count_summary,
     x="IterationPath",
     y=["ClosedStories", "TotalStories"],
     markers=True,
-    title="Burn-Up Chart by Story Count",
-    labels={"value": "User Stories", "IterationPath": "Iteration"},
+    title="Burn-Up Chart by Work Item Count",
+    labels={"value": "Work Items", "IterationPath": "Iteration"},
 )
 st.plotly_chart(fig2, use_container_width=True)
 
