@@ -301,6 +301,73 @@ else:
     st.info("Activated date field not found. Cannot generate Cumulative Flow Diagram.")
 
 # ---------------------------------------------
+# CUMULATIVE FLOW DIAGRAM (EFFORT-BASED)
+# ---------------------------------------------
+st.subheader("Cumulative Flow Diagram (Effort-Based)")
+
+# Ensure the Effort field exists
+effort_field = "Microsoft_VSTS_Scheduling_Effort"
+if effort_field not in workitems_df.columns:
+    st.info("No effort field found for CFD.")
+else:
+    # Use activated date for 'In Progress', closed date for 'Done'
+    workitems_df["ActivatedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ActivatedDate"), utc=True, errors="coerce")
+    workitems_df["ClosedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ClosedDate"), utc=True, errors="coerce")
+
+    # Create daily date range from earliest creation to latest close
+    min_date = workitems_df["System_CreatedDate"].min().normalize()
+    max_date = workitems_df[["System_CreatedDate", "ActivatedDate", "ClosedDate"]].max().max().normalize()
+    date_range = pd.date_range(start=min_date, end=max_date, freq="D")
+
+    cfd_data = []
+    for current_date in date_range:
+        # Done: closed <= current_date
+        done_effort = workitems_df.loc[
+            workitems_df["ClosedDate"].notna() & (workitems_df["ClosedDate"] <= current_date),
+            effort_field
+        ].sum(skipna=True)
+
+        # In Progress: activated <= current_date and (closed > current_date or not closed)
+        in_progress_effort = workitems_df.loc[
+            (workitems_df["ActivatedDate"].notna()) &
+            (workitems_df["ActivatedDate"] <= current_date) &
+            ((workitems_df["ClosedDate"].isna()) | (workitems_df["ClosedDate"] > current_date)),
+            effort_field
+        ].sum(skipna=True)
+
+        # To Do: created <= current_date and (not activated or activated > current_date)
+        todo_effort = workitems_df.loc[
+            (workitems_df["System_CreatedDate"] <= current_date) &
+            ((workitems_df["ActivatedDate"].isna()) | (workitems_df["ActivatedDate"] > current_date)),
+            effort_field
+        ].sum(skipna=True)
+
+        cfd_data.append({
+            "Date": current_date,
+            "To Do": todo_effort,
+            "In Progress": in_progress_effort,
+            "Done": done_effort
+        })
+
+    cfd_df = pd.DataFrame(cfd_data)
+
+    # Plot area chart (stacked), reverse order: Done on bottom, In Progress middle, To Do top
+    fig_cfd = px.area(
+        cfd_df,
+        x="Date",
+        y=["To Do", "In Progress", "Done"][::-1],  # Reverse order
+        labels={"value": "Effort / Story Points", "Date": "Date", "variable": "State"},
+        title="Cumulative Flow Diagram (Effort-Based)"
+    )
+
+    # Assign colors: Done green, In Progress blue, To Do gray
+    fig_cfd.update_traces(selector=dict(name="Done"), fillcolor="green")
+    fig_cfd.update_traces(selector=dict(name="In Progress"), fillcolor="blue")
+    fig_cfd.update_traces(selector=dict(name="To Do"), fillcolor="gray")
+
+    st.plotly_chart(fig_cfd, use_container_width=True)
+
+# ---------------------------------------------
 # DETAILS SECTION
 # ---------------------------------------------
 with st.expander("See data details"):
