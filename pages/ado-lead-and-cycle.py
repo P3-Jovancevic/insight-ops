@@ -251,20 +251,17 @@ else:
 # ---------------------------------------------
 st.subheader("Cumulative Flow Diagram (CFD)")
 
-# Ensure activated date exists
 if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
     # Convert to datetime
     workitems_df["Microsoft_VSTS_Common_ActivatedDate"] = pd.to_datetime(
         workitems_df["Microsoft_VSTS_Common_ActivatedDate"], utc=True, errors="coerce"
     )
 
-    # Determine earliest and latest date for x-axis
+    # Determine date range
     min_date = workitems_df["System_CreatedDate"].min()
     max_date_candidates = [workitems_df["Microsoft_VSTS_Common_ClosedDate"].max(),
                            workitems_df["Microsoft_VSTS_Common_ActivatedDate"].max()]
     max_date = max([d for d in max_date_candidates if pd.notna(d)])
-
-    # Generate date range
     date_range = pd.date_range(start=min_date, end=max_date, freq="D")
 
     cfd_data = []
@@ -282,18 +279,18 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
 
         cfd_data.append({
             "Date": current_date,
-            "To Do": todo_count,
+            "Done": done_count,
             "In Progress": in_progress_count,
-            "Done": done_count
+            "To Do": todo_count
         })
 
     cfd_df = pd.DataFrame(cfd_data)
 
-    # Plot CFD as stacked area chart
+    # Plot CFD as stacked area chart with reversed stack order
     fig_cfd = px.area(
         cfd_df,
         x="Date",
-        y=["To Do", "In Progress", "Done"],
+        y=["Done", "In Progress", "To Do"],  # Done at bottom, To Do on top
         title="Cumulative Flow Diagram (User Stories / PBIs)",
         labels={"value": "Number of Stories", "Date": "Date", "variable": "State"},
         color_discrete_map={"To Do": "#636EFA", "In Progress": "#EF553B", "Done": "#00CC96"}
