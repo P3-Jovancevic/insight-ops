@@ -3,6 +3,8 @@ import pandas as pd
 from pymongo import MongoClient
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
+from modules.refresh_ado_workitems import refresh_work_items
+from modules.refresh_iterations import refresh_iterations  # updated import
 
 # ---------------------------------------------
 # PAGE TITLE
@@ -25,19 +27,6 @@ try:
 except Exception as e:
     st.error(f"Failed to connect to MongoDB: {e}")
     st.stop()
-
-# ---------------------------------------------
-# Button to refresh work items
-# ---------------------------------------------
-if st.button("↻ Work Items"):
-    refresh_work_items()  # Fetch and store data directly in MongoDB
-    st.success("Work items refreshed successfully!")
-    st.rerun()
-
-if st.button("↻ Iterations"):
-    refresh_iterations()  # Fetch and store iteration data directly in MongoDB
-    st.success("Iterations refreshed successfully!")
-    st.rerun()
 
 # ---------------------------------------------
 # LOAD DATA FROM MONGO
@@ -140,6 +129,16 @@ recent_lead_time = recent_lead_items["LeadTimeDays"].mean() if not recent_lead_i
 overall_cycle_time = workitems_df["CycleTimeDays"].mean()
 recent_cycle_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
 recent_cycle_time = recent_cycle_items["CycleTimeDays"].mean() if not recent_cycle_items.empty else None
+
+# ---------------------------------------------
+# Button to refresh iteration data
+# ---------------------------------------------
+if st.button("↻ Refresh"):
+    refresh_iterations()  # Fetch and store iteration data directly in MongoDB
+    refresh_work_items()  # Fetch and store data directly in MongoDB
+    st.success("Refreshed successfully!")
+    st.rerun()
+
 
 # ---------------------------------------------
 # DISPLAY SCORECARDS
