@@ -27,6 +27,15 @@ except Exception as e:
     st.stop()
 
 # ---------------------------------------------
+# Button to refresh work items
+# ---------------------------------------------
+if st.button("↻ Refresh"):
+    refresh_work_items()  # Fetch and store data directly in MongoDB
+    refresh_iterations()  # Fetch and store iteration data directly in MongoDB
+    st.success("Work items and Iterations refreshed successfully!")
+    st.rerun()
+
+# ---------------------------------------------
 # LOAD DATA FROM MONGO
 # ---------------------------------------------
 try:
