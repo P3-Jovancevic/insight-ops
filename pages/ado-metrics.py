@@ -139,7 +139,6 @@ if st.button("↻ Refresh"):
     st.success("Refreshed successfully!")
     st.rerun()
 
-
 # ---------------------------------------------
 # DISPLAY SCORECARDS
 # ---------------------------------------------
