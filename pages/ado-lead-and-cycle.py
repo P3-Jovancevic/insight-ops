@@ -29,12 +29,14 @@ except Exception as e:
 # ---------------------------------------------
 # Button to refresh work items
 # ---------------------------------------------
-if st.button("↻ Refresh"):
+if st.button("↻ Work Items"):
     refresh_work_items()  # Fetch and store data directly in MongoDB
-    st.success("Work items and Iterations refreshed successfully!")
+    st.success("Work items refreshed successfully!")
     st.rerun()
+
+if st.button("↻ Iterations"):
     refresh_iterations()  # Fetch and store iteration data directly in MongoDB
-    st.success("Work items and Iterations refreshed successfully!")
+    st.success("Iterations refreshed successfully!")
     st.rerun()
 
 # ---------------------------------------------
