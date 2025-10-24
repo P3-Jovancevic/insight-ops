@@ -458,23 +458,23 @@ with st.expander("See data details"):
         st.info("No valid cycle time data available for summary.")
 
     # Load and display work items from MongoDB
-    def load_work_items():
-        """Fetch work items from MongoDB."""
-        work_items = list(collection.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
-        if not work_items:
-            return None, "No work items found in MongoDB. Please refresh."
-        return work_items, None
+def load_work_items():
+    """Fetch work items from MongoDB."""
+    work_items = list(collection.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
+    if not work_items:
+        return None, "No work items found in MongoDB. Please refresh."
+    return work_items, None
 
-    work_items, error_message = load_work_items()
+work_items, error_message = load_work_items()
 
-    if error_message:
-        st.warning(error_message)
+if error_message:
+    st.warning(error_message)
+else:
+    st.write(f"Total Work Items: {len(work_items)}")
+
+    # Convert to DataFrame and display
+    if isinstance(work_items, list) and all(isinstance(i, dict) for i in work_items):
+        df = pd.DataFrame(work_items)
+        st.dataframe(df)
     else:
-        st.write(f"Total Work Items: {len(work_items)}")
-
-        # Convert to DataFrame and display
-        if isinstance(work_items, list) and all(isinstance(i, dict) for i in work_items):
-            df = pd.DataFrame(work_items)
-            st.dataframe(df)
-        else:
-            st.json(work_items)  # Fallback to JSON display
+        st.json(work_items)  # Fallback to JSON display
