@@ -5,6 +5,7 @@ from pymongo import MongoClient
 import streamlit as st
 import traceback
 from datetime import datetime
+from cryptography.fernet import Fernet
 
 def sanitize_keys(d):
     """Replace invalid MongoDB characters ('.' and '$') in JSON keys."""
@@ -20,15 +21,61 @@ def refresh_iterations():
     try:
         st.info("🔄 Connecting to Azure DevOps...")
 
-        # Load secrets
-        personal_access_token = st.secrets["ado"]["ado_pat"]
-        organization_url = st.secrets["ado"]["ado_site"]
-        project_name = st.secrets["ado"]["ado_project"]
-        team_name = st.secrets["ado"].get("ado_team", project_name)
-        mongo_uri = st.secrets["mongo"]["uri"]
-        db_name = st.secrets["mongo"]["db_name"]
+        # ------------------------------------------------------------------
+        # Verify user session
+        # ------------------------------------------------------------------
+        if "logged_in" not in st.session_state or not st.session_state["logged_in"]:
+            st.error("You are not logged in. Go to the login page.")
+            st.stop()
 
+        user_email = st.session_state["user_email"]
+
+        # ------------------------------------------------------------------
+        # MongoDB connection setup
+        # ------------------------------------------------------------------
+        MONGODB_URI = st.secrets["mongo"]["uri"]
+        client = MongoClient(MONGODB_URI)
+        db = client["insightops"]
+        users_collection = db["users"]
+        collection_iterations = db["ado-iterations"]
+        collection_workitems = db["ado-workitems"]
+
+        # ------------------------------------------------------------------
+        # Fetch user document
+        # ------------------------------------------------------------------
+        user_doc = users_collection.find_one({"email": user_email.lower()})
+        if not user_doc:
+            st.error("User not found in the database.")
+            st.stop()
+
+        # ------------------------------------------------------------------
+        # Setup Fernet decryption for PAT
+        # ------------------------------------------------------------------
+        FERNET_KEY = st.secrets["encryption"]["fernet_key"]
+        fernet = Fernet(FERNET_KEY.encode())
+
+        def decrypt_pat(encrypted_pat):
+            try:
+                return fernet.decrypt(encrypted_pat.encode()).decode()
+            except Exception:
+                return ""
+
+        # ------------------------------------------------------------------
+        # Load user-specific ADO connection details
+        # ------------------------------------------------------------------
+        organization_url = user_doc.get("organization_url", "")
+        project_name = user_doc.get("project_name", "")
+        team_name = user_doc.get("team_name", project_name)
+        encrypted_pat = user_doc.get("pat", "")
+        personal_access_token = decrypt_pat(encrypted_pat)
+
+        if not all([organization_url, project_name, personal_access_token, team_name]):
+            st.error("Missing Azure DevOps credentials in your profile. Please update your settings.")
+            st.stop()
+
+        # ------------------------------------------------------------------
         # Connect to Azure DevOps
+        # ------------------------------------------------------------------
         credentials = BasicAuthentication('', personal_access_token)
         connection = Connection(base_url=organization_url, creds=credentials)
         work_client = connection.clients.get_work_client()
@@ -37,14 +84,9 @@ def refresh_iterations():
         # Build team context
         team_context = TeamContext(project_id=project_name, team_id=team_name)
 
-        # Connect to MongoDB
-        st.info("⚙️ Connecting to MongoDB...")
-        client = MongoClient(mongo_uri)
-        db = client[db_name]
-        collection_iterations = db["ado-iterations"]
-        collection_workitems = db["ado-workitems"]
-
+        # ------------------------------------------------------------------
         # Fetch iterations
+        # ------------------------------------------------------------------
         st.info(f"📡 Fetching iterations for project '{project_name}' (team: '{team_name}')...")
         iterations = work_client.get_team_iterations(team_context)
 
@@ -92,7 +134,6 @@ def refresh_iterations():
                     "System.WorkItemType",
                     "System.State",
                     "Microsoft.VSTS.Scheduling.Effort",
-                    # Do NOT include ClosedDate here — we calculate late stories from MongoDB
                 ])
 
                 for wi in response:
@@ -112,7 +153,6 @@ def refresh_iterations():
             finish_date = getattr(iteration.attributes, "finish_date", None)
             num_closed_late = 0
             if finish_date:
-                # Match work items for this iteration path and User Story type
                 query = {
                     "System_IterationPath": iteration_path,
                     "System_WorkItemType": "User Story",
@@ -122,7 +162,6 @@ def refresh_iterations():
                 for wi in work_items_for_iteration:
                     closed_date = wi.get("Microsoft_VSTS_Common_ClosedDate")
                     if closed_date:
-                        # Convert to datetime if it's stored as string
                         if isinstance(closed_date, str):
                             closed_date = datetime.fromisoformat(closed_date.replace("Z", "+00:00"))
                         if closed_date > finish_date:
