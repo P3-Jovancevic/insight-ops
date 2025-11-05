@@ -113,6 +113,7 @@ else:
                     "verification_token": verification_token,
                     "organization_url": "",
                     "project_name": "",
+                    "team_name": "",
                     "pat": "",
                     "updated_at": datetime.utcnow(),
                     "created_at": datetime.utcnow()

@@ -51,6 +51,7 @@ def encrypt_pat(raw_pat):
 with st.form("update_profile_form"):
     org_url = st.text_input("Organization URL", user_doc.get("organization_url", ""))
     project_name = st.text_input("Project Name", user_doc.get("project_name", ""))
+    team_name = st.text_input("Team name", user_doc.get("team_name", ""))
 
     stored_pat_encrypted = user_doc.get("pat", "")
     stored_pat = decrypt_pat(stored_pat_encrypted) if stored_pat_encrypted else ""
@@ -62,8 +63,8 @@ with st.form("update_profile_form"):
     submit_button = st.form_submit_button("Save Changes")
 
 if submit_button:
-    if not org_url or not project_name or not pat:
-        st.warning("You need to provide the Organization URL, Project Name, and PAT.")
+    if not org_url or not project_name or not team_name or not pat:
+        st.warning("You need to provide the Organization URL, Project Name, Team Name, and PAT.")
     else:
            
         updates = {}
