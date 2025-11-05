@@ -72,6 +72,8 @@ if submit_button:
             updates["organization_url"] = org_url
         if project_name != user_doc.get("project_name", ""):
             updates["project_name"] = project_name
+        if team_name != user_doc.get("team_name", ""):
+            updates["team_name"] = team_name
         if pat != stored_pat:
             updates["pat"] = encrypt_pat(pat)
         if username != user_doc.get("username", ""):
