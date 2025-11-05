@@ -457,10 +457,10 @@ with st.expander("See data details"):
     else:
         st.info("No valid cycle time data available for summary.")
 
-    # Load and display work items from MongoDB
+# Load and display work items from MongoDB
 def load_work_items():
     """Fetch work items from MongoDB."""
-    work_items = list(collection.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
+    work_items = list(workitems_col.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
     if not work_items:
         return None, "No work items found in MongoDB. Please refresh."
     return work_items, None
