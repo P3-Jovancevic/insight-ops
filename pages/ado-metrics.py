@@ -11,6 +11,14 @@ from modules.refresh_iterations import refresh_iterations  # updated import
 # ---------------------------------------------
 st.title("Lead Time, Cycle Time & Burn-Up Summary")
 
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["user_email"] = None
+
+if not st.session_state["logged_in"]:
+    st.error("You are not logged in. Go to login page.")
+    st.stop()
+
 # ---------------------------------------------
 # CONNECT TO MONGO
 # ---------------------------------------------
