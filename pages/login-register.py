@@ -32,7 +32,7 @@ if "logged_in" not in st.session_state:
 
 if st.session_state["logged_in"]:
     st.subheader(f"User {st.session_state['user_email']} is logged in")
-    if st.button("Sign out"):
+    if st.button("Log out"):
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
         st.rerun()
