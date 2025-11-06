@@ -55,6 +55,10 @@ except Exception as e:
     st.stop()
 
 if not iterations or not workitems:
+    if st.button("↻ Refresh"):
+        refresh_iterations() # Fetch and store iteration data directly in MongoDB
+        refresh_work_items() # Fetch and store data directly in MongoDB st.success("Refreshed successfully!")
+        st.rerun()
     st.warning("No data found in MongoDB collections.")
     st.stop()
     
