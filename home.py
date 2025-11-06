@@ -3,6 +3,7 @@ import pandas as pd
 from pymongo import MongoClient
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
+from google import genai
 from modules.refresh_ado_workitems import refresh_work_items
 from modules.refresh_iterations import refresh_iterations  # updated import
 
@@ -490,7 +491,8 @@ with col2:
 st.subheader("💬 AI Insights")
 
 # Configure Gemini
-genai.configure(api_key=st.secrets["google"]["api_key"])
+api_key=st.secrets["google"]["api_key"]
+genai.configure(api_key)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 # Build a compact summary of your key metrics
