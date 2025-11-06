@@ -17,7 +17,8 @@ if "logged_in" not in st.session_state:
     st.session_state["user_email"] = None
 
 if not st.session_state["logged_in"]:
-    st.error("You are not logged in. Go to login page.")
+    st.error("You are not logged in.")
+    st.link_button("Go to Login / Register", "https://insight-ops.streamlit.app/login-register")
     st.stop()
 
 # ---------------------------------------------
