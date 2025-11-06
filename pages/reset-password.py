@@ -2,6 +2,12 @@ import streamlit as st
 import pymongo
 import bcrypt
 import re
+from modules.hide_pages import hide_internal_pages
+
+# ---------------------------------------------
+# HIDE PAGES FROM NAV
+# ---------------------------------------------
+hide_internal_pages()
 
 # Connect to MongoDB Atlas
 MONGODB_URI = st.secrets["mongo"]["uri"]

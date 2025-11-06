@@ -5,6 +5,12 @@ import requests
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
 from cryptography.fernet import Fernet
+from modules.hide_pages import hide_internal_pages
+
+# ---------------------------------------------
+# HIDE PAGES FROM NAV
+# ---------------------------------------------
+hide_internal_pages()
 
 # MongoDB connection setup
 MONGODB_URI = st.secrets["mongo"]["uri"]

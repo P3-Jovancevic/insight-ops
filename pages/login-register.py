@@ -6,6 +6,12 @@ import re
 import secrets
 from datetime import datetime
 from modules.send_verification_email import send_verification_email
+from modules.hide_pages import hide_internal_pages
+
+# ---------------------------------------------
+# HIDE PAGES FROM NAV
+# ---------------------------------------------
+hide_internal_pages()
 
 # Connect to MongoDB Atlas
 MONGODB_URI = st.secrets["mongo"]["uri"]

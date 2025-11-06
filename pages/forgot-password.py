@@ -2,6 +2,12 @@ import streamlit as st
 import pymongo
 import secrets
 from modules.send_forgot_password_email import send_forgot_password_email  # Assuming this function sends emails
+from modules.hide_pages import hide_internal_pages
+
+# ---------------------------------------------
+# HIDE PAGES FROM NAV
+# ---------------------------------------------
+hide_internal_pages()
 
 # Connect to MongoDB
 MONGODB_URI = st.secrets["mongo"]["uri"]
