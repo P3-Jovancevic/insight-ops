@@ -33,31 +33,38 @@ try:
     workitems_col = db["ado-workitems"]
     users_col = db["users"]
 
-
 except Exception as e:
     st.error(f"Failed to connect to MongoDB: {e}")
     st.stop()
 
 # ---------------------------------------------
-# LOAD DATA FROM MONGO
+# LOAD DATA FROM MONGO (FILTER BY ops_user)
 # ---------------------------------------------
 try:
-    iterations = list(iterations_col.find({}, {"_id": 0, "path": 1, "startDate": 1, "finishDate": 1}))
-    workitems = list(workitems_col.find({}, {
-        "_id": 0,
-        "System_CreatedDate": 1,
-        "Microsoft_VSTS_Common_ClosedDate": 1,
-        "System_IterationPath": 1,
-        "System_WorkItemType": 1,
-        "Microsoft_VSTS_Scheduling_Effort": 1,
-        "Microsoft_VSTS_Common_ActivatedDate": 1
-    }))
+    user_email = st.session_state.get("user_email")
+
+    iterations = list(iterations_col.find(
+        {"ops_user": user_email},
+        {"_id": 0, "path": 1, "startDate": 1, "finishDate": 1}
+    ))
+
+    workitems = list(workitems_col.find(
+        {"ops_user": user_email},
+        {
+            "_id": 0,
+            "System_CreatedDate": 1,
+            "Microsoft_VSTS_Common_ClosedDate": 1,
+            "System_IterationPath": 1,
+            "System_WorkItemType": 1,
+            "Microsoft_VSTS_Scheduling_Effort": 1,
+            "Microsoft_VSTS_Common_ActivatedDate": 1
+        }
+    ))
 except Exception as e:
     st.error(f"Error loading data from MongoDB: {e}")
     st.stop()
 
 if not iterations or not workitems:
-    user_email = st.session_state.get("user_email")
     user = users_col.find_one({"email": user_email}, {"_id": 0}) if user_email else None
 
     if not user:
@@ -81,7 +88,7 @@ if not iterations or not workitems:
 
     st.warning("No data found in MongoDB collections.")
     st.stop()
-    
+
 # ---------------------------------------------
 # CONVERT TO DATAFRAMES AND NORMALIZE DATES
 # ---------------------------------------------
@@ -152,12 +159,10 @@ cutoff_date = latest_finish - timedelta(days=30)
 # ---------------------------------------------
 # CALCULATE METRICS
 # ---------------------------------------------
-# Lead Time
 overall_lead_time = workitems_df["LeadTimeDays"].mean()
 recent_lead_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
 recent_lead_time = recent_lead_items["LeadTimeDays"].mean() if not recent_lead_items.empty else None
 
-# Cycle Time
 overall_cycle_time = workitems_df["CycleTimeDays"].mean()
 recent_cycle_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_date]
 recent_cycle_time = recent_cycle_items["CycleTimeDays"].mean() if not recent_cycle_items.empty else None
@@ -165,7 +170,6 @@ recent_cycle_time = recent_cycle_items["CycleTimeDays"].mean() if not recent_cyc
 # ---------------------------------------------
 # REFRESH BUTTON (disabled if missing user info)
 # ---------------------------------------------
-user_email = st.session_state.get("user_email")
 user = users_col.find_one({"email": user_email}, {"_id": 0}) if user_email else None
 
 if not user:
@@ -223,7 +227,6 @@ with col4:
 # ---------------------------------------------
 st.subheader("Burn-Up Chart (Story Count)")
 
-# Aggregate work items per iteration
 burnup_data = []
 for _, iteration in iterations_df.iterrows():
     path = iteration["path"]
@@ -241,11 +244,9 @@ for _, iteration in iterations_df.iterrows():
 
 burnup_df = pd.DataFrame(burnup_data).sort_values("FinishDate")
 
-# Cumulative values across iterations (burn-up over time)
 burnup_df["CumulativeTotal"] = burnup_df["TotalStories"].cumsum()
 burnup_df["CumulativeCompleted"] = burnup_df["CompletedStories"].cumsum()
 
-# Plotly chart
 fig_burnup = px.line(
     burnup_df,
     x="FinishDate",
@@ -285,11 +286,9 @@ if "Microsoft_VSTS_Scheduling_Effort" in workitems_df.columns:
 
     burnup_effort_df = pd.DataFrame(burnup_effort_data).sort_values("FinishDate")
 
-    # Cumulative effort over iterations
     burnup_effort_df["CumulativeTotal"] = burnup_effort_df["TotalEffort"].cumsum()
     burnup_effort_df["CumulativeCompleted"] = burnup_effort_df["CompletedEffort"].cumsum()
 
-    # Plotly chart
     fig_effort = px.line(
         burnup_effort_df,
         x="FinishDate",
@@ -311,18 +310,17 @@ else:
 st.subheader("Cumulative Flow Diagram (CFD)")
 
 if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
-    # Convert to datetime
     workitems_df["Microsoft_VSTS_Common_ActivatedDate"] = pd.to_datetime(
         workitems_df["Microsoft_VSTS_Common_ActivatedDate"], utc=True, errors="coerce"
     )
 
-    # Determine date range
     min_date = workitems_df["System_CreatedDate"].min()
-    max_date_candidates = [workitems_df["Microsoft_VSTS_Common_ClosedDate"].max(),
-                           workitems_df["Microsoft_VSTS_Common_ActivatedDate"].max()]
+    max_date_candidates = [
+        workitems_df["Microsoft_VSTS_Common_ClosedDate"].max(),
+        workitems_df["Microsoft_VSTS_Common_ActivatedDate"].max()
+    ]
     max_date = max([d for d in max_date_candidates if pd.notna(d)])
 
-    # Extend by 1 day to show final merge
     date_range = pd.date_range(start=min_date, end=max_date + pd.Timedelta(days=1), freq="D")
 
     cfd_data = []
@@ -347,11 +345,10 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
 
     cfd_df = pd.DataFrame(cfd_data)
 
-    # Plot CFD as stacked area chart with reversed stack order
     fig_cfd = px.area(
         cfd_df,
         x="Date",
-        y=["Done", "In Progress", "To Do"],  # Done at bottom, To Do on top
+        y=["Done", "In Progress", "To Do"],
         title="Cumulative Flow Diagram (User Stories / PBIs)",
         labels={"value": "Number of Stories", "Date": "Date", "variable": "State"},
         color_discrete_map={"Done": "green", "In Progress": "blue", "To Do": "gray"}
@@ -360,7 +357,6 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
 
 else:
     st.info("Activated date field not found. Cannot generate Cumulative Flow Diagram.")
-
 
 # ---------------------------------------------
 # CUMULATIVE FLOW DIAGRAM (EFFORT-BASED)
@@ -377,7 +373,6 @@ else:
     min_date = workitems_df["System_CreatedDate"].min().normalize()
     max_date = workitems_df[["System_CreatedDate", "ActivatedDate", "ClosedDate"]].max().max().normalize()
 
-    # Extend by 1 day
     date_range = pd.date_range(start=min_date, end=max_date + pd.Timedelta(days=1), freq="D")
 
     cfd_data = []
@@ -406,7 +401,6 @@ else:
 
     cfd_df = pd.DataFrame(cfd_data)
 
-    # Plot area chart (stacked), Done on bottom
     fig_cfd_effort = px.area(
         cfd_df,
         x="Date",
@@ -418,9 +412,8 @@ else:
     st.plotly_chart(fig_cfd_effort, use_container_width=True)
 
 # ---------------------------------------------
-# ESTIMATE ACCURACY SCORECARDS
+# ESTIMATE ACCURACY
 # ---------------------------------------------
-# Compute cycle time per story (days between ActivatedDate and ClosedDate)
 workitems_df["ActivatedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ActivatedDate"), utc=True, errors="coerce")
 workitems_df["ClosedDate"] = workitems_df["Microsoft_VSTS_Common_ClosedDate"]
 
@@ -434,11 +427,9 @@ def calc_cycle_time_effort(row):
 
 workitems_df["EstimateAccuracy"] = workitems_df.apply(calc_cycle_time_effort, axis=1)
 
-# Overall Estimate Accuracy
 valid_estimates = workitems_df["EstimateAccuracy"].dropna()
 overall_estimate_accuracy = valid_estimates.mean() if not valid_estimates.empty else None
 
-# Last Iteration Estimate Accuracy
 last_iter_path = latest_iteration["path"]
 last_iter_items = workitems_df[workitems_df["System_IterationPath"] == last_iter_path]
 last_iter_estimates = last_iter_items["EstimateAccuracy"].dropna()
@@ -471,7 +462,6 @@ with st.expander("See data details"):
     st.write("### Work Items Sample")
     st.dataframe(workitems_df.head())
 
-    # Lead Time Summary
     st.write("### Work Item Lead Time Summary")
     valid_lead_times = workitems_df["LeadTimeDays"].dropna()
     valid_lead_times = valid_lead_times[valid_lead_times >= 0]
@@ -488,7 +478,6 @@ with st.expander("See data details"):
     else:
         st.info("No valid lead time data available for summary.")
 
-    # Cycle Time Summary
     st.write("### Work Item Cycle Time Summary")
     valid_cycle_times = workitems_df["CycleTimeDays"].dropna()
     valid_cycle_times = valid_cycle_times[valid_cycle_times >= 0]
@@ -505,10 +494,8 @@ with st.expander("See data details"):
     else:
         st.info("No valid cycle time data available for summary.")
 
-    # Load and display work items from MongoDB
     def load_work_items():
-        """Fetch work items from MongoDB."""
-        work_items = list(workitems_col.find({}, {"_id": 0}))  # Exclude MongoDB's _id field
+        work_items = list(workitems_col.find({"ops_user": user_email}, {"_id": 0}))
         if not work_items:
             return None, "No work items found in MongoDB. Please refresh."
         return work_items, None
@@ -519,10 +506,8 @@ with st.expander("See data details"):
         st.warning(error_message)
     else:
         st.write(f"Total Work Items: {len(work_items)}")
-
-        # Convert to DataFrame and display
         if isinstance(work_items, list) and all(isinstance(i, dict) for i in work_items):
             df = pd.DataFrame(work_items)
             st.dataframe(df)
         else:
-            st.json(work_items)  # Fallback to JSON display
+            st.json(work_items)
