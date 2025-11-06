@@ -139,11 +139,27 @@ recent_cycle_items = workitems_df[workitems_df["System_CreatedDate"] > cutoff_da
 recent_cycle_time = recent_cycle_items["CycleTimeDays"].mean() if not recent_cycle_items.empty else None
 
 # ---------------------------------------------
-# Button to refresh iteration data
+# REFRESH BUTTON (disabled if missing user info)
 # ---------------------------------------------
-if st.button("↻ Refresh"):
-    refresh_iterations()  # Fetch and store iteration data directly in MongoDB
-    refresh_work_items()  # Fetch and store data directly in MongoDB
+user_email = st.session_state.get("user_email")
+user = users_col.find_one({"email": user_email}, {"_id": 0}) if user_email else None
+
+if not user:
+    st.warning("User not found in database.")
+    all_fields_present = False
+else:
+    required_fields = ["organization_url", "project_name", "team_name", "pat"]
+    missing_fields = [f for f in required_fields if not user.get(f)]
+    all_fields_present = len(missing_fields) == 0
+
+if not all_fields_present:
+    st.info("Please set up your Azure DevOps connection details (organization URL, project name, team name, and PAT) before refreshing.")
+    if user and missing_fields:
+        st.write(f"⚠️ Missing fields: {', '.join(missing_fields)}")
+
+if st.button("↻ Refresh", disabled=not all_fields_present):
+    refresh_iterations()
+    refresh_work_items()
     st.success("Refreshed successfully!")
     st.rerun()
 
