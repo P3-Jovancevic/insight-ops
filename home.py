@@ -496,8 +496,9 @@ except KeyError:
     st.error("API Key not found in Streamlit secrets. Please ensure it's named 'GEMINI_API_KEY'.")
     st.stop()
 
+# Configure Gemini
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')  # or 'gemini-2.5-pro'
 
 # -------------------------
 # AI Input Form
@@ -521,18 +522,17 @@ with st.form(key="ai_insights_form"):
             step=1
         )
     
-    # Submit button inside the form
     submit = st.form_submit_button("🧠 Generate AI Analysis")
 
 # -------------------------
 # Trigger AI only after form submit
 # -------------------------
 if submit:
-    # Assign form values to session_state variables (optional, for persistence)
+    # Assign committed values to session_state
     st.session_state["team_size"] = temp_team_size
     st.session_state["capacity_per_person"] = temp_capacity_per_person
 
-    # Build metrics summary
+    # Build base metrics summary
     metrics_summary = {
         "overall_lead_time": overall_lead_time,
         "recent_lead_time": recent_lead_time,
@@ -545,6 +545,27 @@ if submit:
         "capacity_per_person": st.session_state["capacity_per_person"],
     }
 
+    # Include effort-based CFD metrics if available
+    if 'cfd_df' in locals() and not cfd_df.empty:
+        last_row = cfd_df.iloc[-1]
+        total_done_effort = last_row["Done"]
+        total_in_progress_effort = last_row["In Progress"]
+        total_todo_effort = last_row["To Do"]
+
+        # Average daily throughput (Done effort per day)
+        daily_done_diff = cfd_df["Done"].diff().dropna()
+        avg_daily_throughput = daily_done_diff.mean() if not daily_done_diff.empty else 0
+
+        metrics_summary.update({
+            "total_done_effort": total_done_effort,
+            "total_in_progress_effort": total_in_progress_effort,
+            "total_todo_effort": total_todo_effort,
+            "avg_daily_throughput": avg_daily_throughput
+        })
+
+    # -------------------------
+    # Send to AI
+    # -------------------------
     with st.spinner("Analyzing metrics..."):
         prompt = f"""
         You are an Agile performance analyst.
@@ -554,8 +575,8 @@ if submit:
 
         Provide a short, data-driven summary of:
         - Performance trends (lead time, cycle time)
-        - Potential bottlenecks or process issues
-        - Recommendations for improvement and how to do it (workshops, action, etc.)
+        - Bottlenecks or issues (based on CFD and team capacity)
+        - Recommendations for improvement (actions, workshops, etc.)
         Be brief, concise. If data is unclear, make sure to note that too.
         The paradigm for capacity and effort is 1 capacity (day) is 1 effort (story point), with fibbonacci in mind (effort is estimated in 1, 2, 3, 5, 8, 13, 21+)
         """
