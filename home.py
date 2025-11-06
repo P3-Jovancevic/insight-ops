@@ -78,6 +78,7 @@ if not iterations or not workitems:
         refresh_work_items()
         st.success("Refreshed successfully!")
     st.rerun()
+    st.stop()
 
 # ---------------------------------------------
 # CONVERT TO DATAFRAMES AND NORMALIZE DATES
