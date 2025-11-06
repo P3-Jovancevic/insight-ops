@@ -126,6 +126,30 @@ with st.expander("⚠️ Delete Account"):
         else:
             st.warning("Confirmation email does not match. Account not deleted.")
 
+with st.expander("🧹 Delete My Azure DevOps Data"):
+    st.warning("This will delete all work items and iteration data associated with your account.")
+    
+    confirm_cleanup = st.text_input(
+        "Type your email to confirm deletion of associated Azure DevOps data"
+    )
+
+    if st.button("Delete My ADO Data"):
+        if confirm_cleanup.lower() == user_email.lower():
+            # Connect to the two collections
+            workitems_collection = db["ado-workitems"]
+            iterations_collection = db["ado-iterations"]
+
+            # Delete documents where ops_user matches the logged-in user
+            deleted_workitems = workitems_collection.delete_many({"ops_user": user_email.lower()})
+            deleted_iterations = iterations_collection.delete_many({"ops_user": user_email.lower()})
+
+            st.success(
+                f"Deleted {deleted_workitems.deleted_count} work items and "
+                f"{deleted_iterations.deleted_count} iterations belonging to your account."
+            )
+        else:
+            st.warning("Email does not match. ADO data was NOT deleted.")
+
 if st.button("Log out"):
     st.session_state["logged_in"] = False
     st.session_state["user_email"] = None
