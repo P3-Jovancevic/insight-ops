@@ -6,6 +6,12 @@ import plotly.express as px
 from google import generativeai as genai
 from modules.refresh_ado_workitems import refresh_work_items
 from modules.refresh_iterations import refresh_iterations  # updated import
+from modules.hide_pages import hide_internal_pages
+
+# ---------------------------------------------
+# HIDE PAGES FROM NAV
+# ---------------------------------------------
+hide_internal_pages()
 
 # ---------------------------------------------
 # PAGE TITLE
