@@ -26,13 +26,6 @@ if "logged_in" not in st.session_state:
 
 if st.session_state["logged_in"]:
     st.subheader(f"User {st.session_state['user_email']} is logged in")
-    if st.button("InsightOps Home"):
-        st.markdown(
-            """
-            <meta http-equiv="refresh" content="0; url='https://insight-ops.streamlit.app'">
-            """,
-            unsafe_allow_html=True
-        )
     if st.button("Sign out"):
         st.session_state["logged_in"] = False
         st.session_state["user_email"] = None
