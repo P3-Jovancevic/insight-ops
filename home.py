@@ -534,15 +534,15 @@ if submit:
 
     # Build base metrics summary
     metrics_summary = {
-        "overall_lead_time": overall_lead_time,
-        "recent_lead_time": recent_lead_time,
-        "overall_cycle_time": overall_cycle_time,
-        "recent_cycle_time": recent_cycle_time,
-        "last_iteration": latest_iteration["path"],
-        "iteration_count": len(iterations_df),
-        "workitem_count": len(workitems_df),
-        "team_size": st.session_state["team_size"],
-        "capacity_per_person": st.session_state["capacity_per_person"],
+        "Overall lead time": overall_lead_time,
+        "Recent lead time (last 30 days)": recent_lead_time,
+        "Overall cycle time": overall_cycle_time,
+        "Recent cycle time (last 30 days)": recent_cycle_time,
+        "Last iteration": latest_iteration["path"],
+        "Iteration count": len(iterations_df),
+        "Workitem count": len(workitems_df),
+        "Team size": st.session_state["team_size"],
+        "Capacity per person per iteration": st.session_state["capacity_per_person"],
     }
 
     # Include effort-based CFD metrics if available
