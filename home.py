@@ -557,10 +557,10 @@ if submit:
         avg_daily_throughput = daily_done_diff.mean() if not daily_done_diff.empty else 0
 
         metrics_summary.update({
-            "total_done_effort": total_done_effort,
-            "total_in_progress_effort": total_in_progress_effort,
-            "total_todo_effort": total_todo_effort,
-            "avg_daily_throughput": avg_daily_throughput
+            "Total effort done": total_done_effort,
+            "Total in progress effort": total_in_progress_effort,
+            "Total effort to be done": total_todo_effort,
+            "Average throughput": avg_daily_throughput
         })
 
     # -------------------------
