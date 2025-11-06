@@ -178,7 +178,8 @@ def refresh_iterations():
                 "numBugs": num_bugs,
                 "sumEffortUserStories": sum_effort,
                 "numUserStoriesDone": num_done,
-                "numUserStoriesClosedLate": num_closed_late
+                "numUserStoriesClosedLate": num_closed_late,
+                "ops_user": user_email
             }
 
             sanitized = sanitize_keys(data)
