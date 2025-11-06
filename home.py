@@ -560,7 +560,7 @@ if submit:
             "Total effort done": total_done_effort,
             "Total in progress effort": total_in_progress_effort,
             "Total effort to be done": total_todo_effort,
-            "Average throughput": avg_daily_throughput
+            "Average throughput (effort done per Iteration)": avg_daily_throughput
         })
 
     # -------------------------
