@@ -504,23 +504,16 @@ model = genai.GenerativeModel('gemini-2.5-flash')
 # -------------------------
 col1, col2 = st.columns(2)
 
+number = st.number_input("Insert a number", value=None, placeholder="Type a number...")
+st.write("The current number is ", number)
+
 with col1:
-    temp_team_size = st.number_input(
-        label="Team Size",
-        min_value=1,
-        value=5,
-        step=1,
-        key="temp_team_size"
-    )
+    temp_team_size = st.number_input("Team size", value=None, placeholder="Type a number...")
+    st.write("There are", temp_team_size, "persons in the team.")
 
 with col2:
-    temp_capacity_per_person = st.number_input(
-        label="Capacity per Person",
-        min_value=1,
-        value=8,
-        step=1,
-        key="temp_capacity_per_person"
-    )
+    temp_capacity_per_person = st.number_input("Capacity", value=None, placeholder="Type a number...")
+    st.write("In one iteration, there is", temp_capacity_per_person, "days per person.")
 
 # -------------------------
 # BUTTON TO COMMIT INPUTS
