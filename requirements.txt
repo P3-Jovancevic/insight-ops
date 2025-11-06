@@ -7,3 +7,4 @@ azure-devops
 msrest
 plotly
 cryptography
+google-generativeai

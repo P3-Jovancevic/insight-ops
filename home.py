@@ -485,6 +485,46 @@ with col2:
     )
 
 # ---------------------------------------------
+# AI INSIGHTS
+# ---------------------------------------------
+st.subheader("💬 AI Insights")
+
+# Configure Gemini
+genai.configure(api_key=st.secrets["google"]["api_key"])
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+# Build a compact summary of your key metrics
+metrics_summary = {
+    "overall_lead_time": overall_lead_time,
+    "recent_lead_time": recent_lead_time,
+    "overall_cycle_time": overall_cycle_time,
+    "recent_cycle_time": recent_cycle_time,
+    "estimate_accuracy": overall_estimate_accuracy,
+    "last_iteration": latest_iteration["path"],
+    "iteration_count": len(iterations_df),
+    "workitem_count": len(workitems_df),
+}
+
+# Optional: allow user to trigger AI analysis
+if st.button("🧠 Generate AI Analysis"):
+    with st.spinner("Analyzing metrics..."):
+        prompt = f"""
+        You are an Agile performance analyst.
+        Here are key delivery metrics for a software team:
+
+        {metrics_summary}
+
+        Provide a short, data-driven summary of:
+        - Performance trends (lead time, cycle time)
+        - Potential bottlenecks or process issues
+        - Recommendations for improvement and how to do it (workshops, action, etc.)
+        Be breif, concise and only focus on the most outstanding issue. If data is unclear, make sure to note that too.
+        """
+
+        response = model.generate_content(prompt)
+        st.markdown(response.text)
+
+# ---------------------------------------------
 # DETAILS SECTION
 # ---------------------------------------------
 with st.expander("See data details"):
