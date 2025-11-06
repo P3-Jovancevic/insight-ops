@@ -496,52 +496,53 @@ except KeyError:
     st.error("API Key not found in Streamlit secrets. Please ensure it's named 'GEMINI_API_KEY'.")
     st.stop()
 
-# Configure the Gemini API client
 genai.configure(api_key=api_key)
-
-# Initialize the model
-model = genai.GenerativeModel('gemini-2.5-flash') # Or other model like 'gemini-2.5-pro'
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 # -------------------------
-# USER INPUTS
+# INPUTS (uncommitted)
 # -------------------------
 col1, col2 = st.columns(2)
 
 with col1:
-    team_size = st.number_input(
+    temp_team_size = st.number_input(
         label="Team Size",
         min_value=1,
         value=5,
         step=1,
-        help="Number of people in the team"
+        key="temp_team_size"
     )
 
 with col2:
-    capacity_per_person = st.number_input(
+    temp_capacity_per_person = st.number_input(
         label="Capacity per Person",
         min_value=1,
         value=8,
         step=1,
-        help="Capacity per person (e.g., story points per iteration)"
+        key="temp_capacity_per_person"
     )
 
 # -------------------------
-# BUILD METRICS SUMMARY
+# BUTTON TO COMMIT INPUTS
 # -------------------------
-metrics_summary = {
-    "overall_lead_time": overall_lead_time,
-    "recent_lead_time": recent_lead_time,
-    "overall_cycle_time": overall_cycle_time,
-    "recent_cycle_time": recent_cycle_time,
-    "last_iteration": latest_iteration["path"],
-    "iteration_count": len(iterations_df),
-    "workitem_count": len(workitems_df),
-    "team_size": team_size,
-    "capacity_per_person": capacity_per_person,
-}
-
-# Optional: allow user to trigger AI analysis
 if st.button("🧠 Generate AI Analysis"):
+    # Save inputs in session state so they persist during this run
+    st.session_state["team_size"] = temp_team_size
+    st.session_state["capacity_per_person"] = temp_capacity_per_person
+
+    # Build metrics summary using committed values
+    metrics_summary = {
+        "overall_lead_time": overall_lead_time,
+        "recent_lead_time": recent_lead_time,
+        "overall_cycle_time": overall_cycle_time,
+        "recent_cycle_time": recent_cycle_time,
+        "last_iteration": latest_iteration["path"],
+        "iteration_count": len(iterations_df),
+        "workitem_count": len(workitems_df),
+        "team_size": st.session_state["team_size"],
+        "capacity_per_person": st.session_state["capacity_per_person"],
+    }
+
     with st.spinner("Analyzing metrics..."):
         prompt = f"""
         You are an Agile performance analyst.
