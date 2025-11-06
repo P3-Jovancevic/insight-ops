@@ -19,12 +19,12 @@ if "logged_in" not in st.session_state:
 if not st.session_state["logged_in"]:
     st.error("You are not logged in.")
     if st.button("Go to Login / Register"):
-    st.markdown(
-        """
-        <meta http-equiv="refresh" content="0; url='https://insight-ops.streamlit.app/login-register'">
-        """,
-        unsafe_allow_html=True
-    )
+        st.markdown(
+            """
+            <meta http-equiv="refresh" content="0; url='https://insight-ops.streamlit.app/login-register'">
+            """,
+            unsafe_allow_html=True
+        )
     st.stop()
 
 # ---------------------------------------------
