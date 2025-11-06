@@ -500,30 +500,39 @@ genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 # -------------------------
-# INPUTS (uncommitted)
+# AI Input Form
 # -------------------------
-col1, col2 = st.columns(2)
-
-number = st.number_input("Insert a number", value=None, placeholder="Type a number...")
-st.write("The current number is ", number)
-
-with col1:
-    temp_team_size = st.number_input("Team size", value=None, placeholder="Type a number...")
-    st.write("There are", temp_team_size, "persons in the team.")
-
-with col2:
-    temp_capacity_per_person = st.number_input("Capacity", value=None, placeholder="Type a number...")
-    st.write("In one iteration, there is", temp_capacity_per_person, "days per person.")
+with st.form(key="ai_insights_form"):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        temp_team_size = st.number_input(
+            label="Team Size",
+            min_value=1,
+            value=5,
+            step=1
+        )
+    
+    with col2:
+        temp_capacity_per_person = st.number_input(
+            label="Capacity per Person",
+            min_value=1,
+            value=8,
+            step=1
+        )
+    
+    # Submit button inside the form
+    submit = st.form_submit_button("🧠 Generate AI Analysis")
 
 # -------------------------
-# BUTTON TO COMMIT INPUTS
+# Trigger AI only after form submit
 # -------------------------
-if st.button("🧠 Generate AI Analysis"):
-    # Save inputs in session state so they persist during this run
+if submit:
+    # Assign form values to session_state variables (optional, for persistence)
     st.session_state["team_size"] = temp_team_size
     st.session_state["capacity_per_person"] = temp_capacity_per_person
 
-    # Build metrics summary using committed values
+    # Build metrics summary
     metrics_summary = {
         "overall_lead_time": overall_lead_time,
         "recent_lead_time": recent_lead_time,
@@ -547,7 +556,7 @@ if st.button("🧠 Generate AI Analysis"):
         - Performance trends (lead time, cycle time)
         - Potential bottlenecks or process issues
         - Recommendations for improvement and how to do it (workshops, action, etc.)
-        Be brief, concise and only focus on the most outstanding issue. If data is unclear, make sure to note that too.
+        Be brief, concise. If data is unclear, make sure to note that too.
         The paradigm for capacity and effort is 1 capacity (day) is 1 effort (story point), with fibbonacci in mind (effort is estimated in 1, 2, 3, 5, 8, 13, 21+)
         """
 
