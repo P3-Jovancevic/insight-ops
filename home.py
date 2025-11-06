@@ -55,6 +55,7 @@ except Exception as e:
     st.stop()
 
 if not iterations or not workitems:
+    
     user_email = st.session_state.get("user_email")
     user = users_col.find_one({"email": user_email}, {"_id": 0}) if user_email else None
 
@@ -76,7 +77,7 @@ if not iterations or not workitems:
         refresh_work_items()
         st.success("Refreshed successfully!")
         st.rerun()
-        
+
     st.warning("No data found in MongoDB collections.")
     st.stop()
     
