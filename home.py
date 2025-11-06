@@ -310,37 +310,56 @@ else:
 st.subheader("Cumulative Flow Diagram (CFD)")
 
 if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
+    # Parse activated and closed columns (keep tz-aware)
     workitems_df["Microsoft_VSTS_Common_ActivatedDate"] = pd.to_datetime(
         workitems_df["Microsoft_VSTS_Common_ActivatedDate"], utc=True, errors="coerce"
     )
+    workitems_df["Microsoft_VSTS_Common_ClosedDate"] = pd.to_datetime(
+        workitems_df["Microsoft_VSTS_Common_ClosedDate"], utc=True, errors="coerce"
+    )
 
-    min_date = workitems_df["System_CreatedDate"].min()
-    max_date_candidates = [
-        workitems_df["Microsoft_VSTS_Common_ClosedDate"].max(),
-        workitems_df["Microsoft_VSTS_Common_ActivatedDate"].max()
-    ]
+    # Normalize the relevant dates to calendar dates for daily buckets (preserves tz)
+    created_norm = workitems_df["System_CreatedDate"].dt.normalize()
+    activated_norm = workitems_df["Microsoft_VSTS_Common_ActivatedDate"].dt.normalize()
+    closed_norm = workitems_df["Microsoft_VSTS_Common_ClosedDate"].dt.normalize()
+
+    # Determine min and max dates based on work item activity (normalized)
+    min_date = created_norm.min()
+    # take latest of activated/closed (ignoring NaT)
+    max_date_candidates = [activated_norm.max(), closed_norm.max()]
     max_date = max([d for d in max_date_candidates if pd.notna(d)])
 
+    # Build inclusive daily range
     date_range = pd.date_range(start=min_date, end=max_date + pd.Timedelta(days=1), freq="D")
 
     cfd_data = []
 
+    # Pre-store column series for speed
+    total_count_all = len(workitems_df)
+
     for current_date in date_range:
-        done_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].notna()) &
-                      (workitems_df["Microsoft_VSTS_Common_ClosedDate"].notna()) &
-                      (workitems_df["Microsoft_VSTS_Common_ClosedDate"] <= current_date)).sum()
+        # current_date is midnight of the day (Timestamp)
+        # Masks for states (Done overrides In Progress)
+        done_mask = (closed_norm.notna()) & (closed_norm <= current_date)
 
-        in_progress_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].notna()) &
-                             ((workitems_df["Microsoft_VSTS_Common_ClosedDate"].isna()) |
-                              (workitems_df["Microsoft_VSTS_Common_ClosedDate"] > current_date))).sum()
+        in_progress_mask = (
+            (activated_norm.notna())
+            & (activated_norm <= current_date)
+            & (~done_mask)  # ensure done items are not counted as in progress
+        )
 
-        todo_count = len(workitems_df) - done_count - in_progress_count
+        todo_mask = ~done_mask & ~in_progress_mask
 
+        done_count = done_mask.sum()
+        in_progress_count = in_progress_mask.sum()
+        todo_count = todo_mask.sum()
+
+        # Append row
         cfd_data.append({
             "Date": current_date,
-            "Done": done_count,
-            "In Progress": in_progress_count,
-            "To Do": todo_count
+            "Done": int(done_count),
+            "In Progress": int(in_progress_count),
+            "To Do": int(todo_count)
         })
 
     cfd_df = pd.DataFrame(cfd_data)
@@ -367,36 +386,49 @@ effort_field = "Microsoft_VSTS_Scheduling_Effort"
 if effort_field not in workitems_df.columns:
     st.info("No effort field found for CFD.")
 else:
+    # Prepare normalized dates and effort column
     workitems_df["ActivatedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ActivatedDate"), utc=True, errors="coerce")
     workitems_df["ClosedDate"] = pd.to_datetime(workitems_df.get("Microsoft_VSTS_Common_ClosedDate"), utc=True, errors="coerce")
 
-    min_date = workitems_df["System_CreatedDate"].min().normalize()
-    max_date = workitems_df[["System_CreatedDate", "ActivatedDate", "ClosedDate"]].max().max().normalize()
+    created_norm = workitems_df["System_CreatedDate"].dt.normalize()
+    activated_norm = workitems_df["ActivatedDate"].dt.normalize()
+    closed_norm = workitems_df["ClosedDate"].dt.normalize()
+
+    # Normalized min/max for range
+    min_date = created_norm.min()
+    max_date = pd.concat([created_norm, activated_norm, closed_norm]).max()
 
     date_range = pd.date_range(start=min_date, end=max_date + pd.Timedelta(days=1), freq="D")
 
     cfd_data = []
+
+    # For numeric operations ensure effort is numeric (NaN -> 0 for sums)
+    effort_series = pd.to_numeric(workitems_df.get(effort_field), errors="coerce").fillna(0)
+
     for current_date in date_range:
-        done_effort = workitems_df.loc[
-            (workitems_df["ActivatedDate"].notna()) &
-            (workitems_df["ClosedDate"].notna()) &
-            (workitems_df["ClosedDate"] <= current_date),
-            effort_field
-        ].sum(skipna=True)
+        done_mask = (closed_norm.notna()) & (closed_norm <= current_date)
 
-        in_progress_effort = workitems_df.loc[
-            (workitems_df["ActivatedDate"].notna()) &
-            ((workitems_df["ClosedDate"].isna()) | (workitems_df["ClosedDate"] > current_date)),
-            effort_field
-        ].sum(skipna=True)
+        in_progress_mask = (
+            (activated_norm.notna())
+            & (activated_norm <= current_date)
+            & (~done_mask)  # ensure done items are not counted as in progress
+        )
 
-        todo_effort = workitems_df[effort_field].sum(skipna=True) - done_effort - in_progress_effort
+        # Sum effort per state
+        done_effort = effort_series[done_mask].sum(skipna=True)
+        in_progress_effort = effort_series[in_progress_mask].sum(skipna=True)
+        total_effort = effort_series.sum(skipna=True)
+        todo_effort = total_effort - done_effort - in_progress_effort
+
+        # Guard against tiny negative float rounding
+        if todo_effort < 0 and todo_effort > -1e-8:
+            todo_effort = 0.0
 
         cfd_data.append({
             "Date": current_date,
-            "Done": done_effort,
-            "In Progress": in_progress_effort,
-            "To Do": todo_effort
+            "Done": float(done_effort),
+            "In Progress": float(in_progress_effort),
+            "To Do": float(todo_effort)
         })
 
     cfd_df = pd.DataFrame(cfd_data)
