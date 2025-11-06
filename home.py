@@ -3,7 +3,7 @@ import pandas as pd
 from pymongo import MongoClient
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
-from google import genai
+from google import generativeai as genai
 from modules.refresh_ado_workitems import refresh_work_items
 from modules.refresh_iterations import refresh_iterations  # updated import
 
@@ -490,10 +490,17 @@ with col2:
 # ---------------------------------------------
 st.subheader("💬 AI Insights")
 
-# Configure Gemini
-api_key=st.secrets["google"]["api_key"]
-genai.configure(api_key)
-model = genai.GenerativeModel("gemini-1.5-flash")
+try:
+    api_key = st.secrets["google"]["api_key"]
+except KeyError:
+    st.error("API Key not found in Streamlit secrets. Please ensure it's named 'GEMINI_API_KEY'.")
+    st.stop()
+
+# Configure the Gemini API client
+genai.configure(api_key=api_key)
+
+# Initialize the model
+model = genai.GenerativeModel('gemini-2.5-flash') # Or other model like 'gemini-2.5-pro'
 
 # Build a compact summary of your key metrics
 metrics_summary = {
