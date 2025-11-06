@@ -56,21 +56,6 @@ except Exception as e:
 
 if not iterations or not workitems:
     st.warning("No data found in MongoDB collections.")
-    
-    required_fields = ["organization_url", "project_name", "team_name", "pat"]
-    missing_fields = [f for f in required_fields if not user.get(f)]
-    all_fields_present = len(missing_fields) == 0
-
-    if not all_fields_present:
-        st.info("Please set up your Azure DevOps connection details (organization URL, project name, team name, and PAT) before refreshing.")
-        if user and missing_fields:
-            st.write(f"⚠️ Missing fields: {', '.join(missing_fields)}")
-
-    if st.button("↻ Refresh", disabled=not all_fields_present):
-        refresh_iterations()
-        refresh_work_items()
-        st.success("Refreshed successfully!")
-    st.rerun()
     st.stop()
     
 # ---------------------------------------------
