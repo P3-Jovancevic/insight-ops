@@ -56,7 +56,6 @@ except Exception as e:
 
 if not iterations or not workitems:
     st.warning("No data found in MongoDB collections.")
-    st.stop()
 
     user_email = st.session_state.get("user_email") #refresh button
     user = users_col.find_one({"email": user_email}, {"_id": 0}) if user_email else None
