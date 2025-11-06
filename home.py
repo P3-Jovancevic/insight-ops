@@ -328,7 +328,7 @@ if "Microsoft_VSTS_Common_ActivatedDate" in workitems_df.columns:
     for current_date in date_range:
         done_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].notna()) &
                       (workitems_df["Microsoft_VSTS_Common_ClosedDate"].notna()) &
-                      (workitems_df["Microsoft_VSTS_Common_ClosedDate"].dt.normalize() <= current_date)).sum()
+                      (workitems_df["Microsoft_VSTS_Common_ClosedDate"] <= current_date)).sum()
 
         in_progress_count = ((workitems_df["Microsoft_VSTS_Common_ActivatedDate"].notna()) &
                              ((workitems_df["Microsoft_VSTS_Common_ClosedDate"].isna()) |
@@ -380,7 +380,7 @@ else:
         done_effort = workitems_df.loc[
             (workitems_df["ActivatedDate"].notna()) &
             (workitems_df["ClosedDate"].notna()) &
-            (workitems_df["ClosedDate"].dt.normalize() <= current_date),
+            (workitems_df["ClosedDate"] <= current_date),
             effort_field
         ].sum(skipna=True)
 
