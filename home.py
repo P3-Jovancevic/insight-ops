@@ -39,25 +39,6 @@ except Exception as e:
 # ---------------------------------------------
 # LOAD DATA FROM MONGO
 # ---------------------------------------------
-try:
-    iterations = list(iterations_col.find({}, {"_id": 0, "path": 1, "startDate": 1, "finishDate": 1}))
-    workitems = list(workitems_col.find({}, {
-        "_id": 0,
-        "System_CreatedDate": 1,
-        "Microsoft_VSTS_Common_ClosedDate": 1,
-        "System_IterationPath": 1,
-        "System_WorkItemType": 1,
-        "Microsoft_VSTS_Scheduling_Effort": 1,
-        "Microsoft_VSTS_Common_ActivatedDate": 1
-    }))
-except Exception as e:
-    st.error(f"Error loading data from MongoDB: {e}")
-    st.stop()
-
-if not iterations or not workitems:
-    st.warning("No data found in MongoDB collections.")
-    st.stop()
-
 user_email = st.session_state.get("user_email") #refresh button
 user = users_col.find_one({"email": user_email}, {"_id": 0}) if user_email else None
 
@@ -79,8 +60,26 @@ if st.button("↻ Refresh", disabled=not all_fields_present):
     refresh_work_items()
     st.success("Refreshed successfully!")
 st.rerun()
-    
 
+try:
+    iterations = list(iterations_col.find({}, {"_id": 0, "path": 1, "startDate": 1, "finishDate": 1}))
+    workitems = list(workitems_col.find({}, {
+        "_id": 0,
+        "System_CreatedDate": 1,
+        "Microsoft_VSTS_Common_ClosedDate": 1,
+        "System_IterationPath": 1,
+        "System_WorkItemType": 1,
+        "Microsoft_VSTS_Scheduling_Effort": 1,
+        "Microsoft_VSTS_Common_ActivatedDate": 1
+    }))
+except Exception as e:
+    st.error(f"Error loading data from MongoDB: {e}")
+    st.stop()
+
+if not iterations or not workitems:
+    st.warning("No data found in MongoDB collections.")
+    st.stop()
+    
 # ---------------------------------------------
 # CONVERT TO DATAFRAMES AND NORMALIZE DATES
 # ---------------------------------------------
