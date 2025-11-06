@@ -502,16 +502,42 @@ genai.configure(api_key=api_key)
 # Initialize the model
 model = genai.GenerativeModel('gemini-2.5-flash') # Or other model like 'gemini-2.5-pro'
 
-# Build a compact summary of your key metrics
+# -------------------------
+# USER INPUTS
+# -------------------------
+col1, col2 = st.columns(2)
+
+with col1:
+    team_size = st.number_input(
+        label="Team Size",
+        min_value=1,
+        value=5,
+        step=1,
+        help="Number of people in the team"
+    )
+
+with col2:
+    capacity_per_person = st.number_input(
+        label="Capacity per Person",
+        min_value=1,
+        value=8,
+        step=1,
+        help="Capacity per person (e.g., story points per iteration)"
+    )
+
+# -------------------------
+# BUILD METRICS SUMMARY
+# -------------------------
 metrics_summary = {
     "overall_lead_time": overall_lead_time,
     "recent_lead_time": recent_lead_time,
     "overall_cycle_time": overall_cycle_time,
     "recent_cycle_time": recent_cycle_time,
-    "estimate_accuracy": overall_estimate_accuracy,
     "last_iteration": latest_iteration["path"],
     "iteration_count": len(iterations_df),
     "workitem_count": len(workitems_df),
+    "team_size": team_size,
+    "capacity_per_person": capacity_per_person,
 }
 
 # Optional: allow user to trigger AI analysis
@@ -527,7 +553,8 @@ if st.button("🧠 Generate AI Analysis"):
         - Performance trends (lead time, cycle time)
         - Potential bottlenecks or process issues
         - Recommendations for improvement and how to do it (workshops, action, etc.)
-        Be breif, concise and only focus on the most outstanding issue. If data is unclear, make sure to note that too.
+        Be brief, concise and only focus on the most outstanding issue. If data is unclear, make sure to note that too.
+        The paradigm for capacity and effort is 1 capacity (day) is 1 effort (story point), with fibbonacci in mind (effort is estimated in 1, 2, 3, 5, 8, 13, 21+)
         """
 
         response = model.generate_content(prompt)
