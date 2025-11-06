@@ -109,6 +109,7 @@ def refresh_work_items():
             for work_item in response:
                 sanitized_data = sanitize_keys(work_item.fields)
                 sanitized_data["System_Id"] = work_item.id  # Ensure System.Id is present
+                sanitized_data["ops_user"] = user_email     # Add logged-in user email
 
                 # Upsert to avoid duplicates
                 workitems_collection.update_one(
