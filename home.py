@@ -483,18 +483,18 @@ active_time_indicator_last_sprint = last_iter_estimates.mean() if not last_iter_
 
 last_iter_name = last_iter_path.split("\\")[-1]
 
-st.subheader("Active time ration indicator (Cycle Time / Story Points)")
+st.subheader("Active time ratio indicator (Cycle Time / Story Points)")
 col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
-        label="Overall Active time ration indicator (All User Stories)",
+        label="Overall Active time ratio indicator (All User Stories)",
         value=f"{active_time_indicator:.2f} %" if active_time_indicator else "N/A"
     )
 
 with col2:
     st.metric(
-        label=f"Active time ration indicator (Last Iteration: {last_iter_name})",
+        label=f"Active time ratio indicator (Last Iteration: {last_iter_name})",
         value=f"{active_time_indicator_last_sprint:.2f} %" if active_time_indicator_last_sprint else "N/A"
     )
 
@@ -551,6 +551,8 @@ if submit:
         "Recent lead time (last 30 days)": recent_lead_time,
         "Overall cycle time": overall_cycle_time,
         "Recent cycle time (last 30 days)": recent_cycle_time,
+        "Overall active time indicator": active_time_indicator,
+        "Recent active time indicator": active_time_indicator_last_sprint,
         "Last iteration": latest_iteration["path"],
         "Iteration count": len(iterations_df),
         "Workitem count": len(workitems_df),
@@ -588,7 +590,7 @@ if submit:
 
         Provide a short, data-driven summary of:
         - Performance trends (lead time, cycle time)
-        - Bottlenecks or issues (based on CFD and team capacity)
+        - Bottlenecks or issues (based on CFD and team capacity, active time indicator)
         - Recommendations for improvement (actions, workshops, etc.)
         Be brief, concise. If data is unclear, make sure to note that too.
         The paradigm for capacity and effort is 1 capacity (day) is 1 effort (story point), with fibbonacci in mind (effort is estimated in 1, 2, 3, 5, 8, 13, 21+)
