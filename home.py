@@ -479,7 +479,7 @@ active_time_indicator = valid_estimates.mean() if not valid_estimates.empty else
 last_iter_path = latest_iteration["path"]
 last_iter_items = workitems_df[workitems_df["System_IterationPath"] == last_iter_path]
 last_iter_estimates = last_iter_items["EstimateAccuracy"].dropna()
-last_iter_estimate_accuracy = last_iter_estimates.mean() if not last_iter_estimates.empty else None
+active_time_indicator_last_sprint = last_iter_estimates.mean() if not last_iter_estimates.empty else None
 
 last_iter_name = last_iter_path.split("\\")[-1]
 
@@ -489,13 +489,13 @@ col1, col2 = st.columns(2)
 with col1:
     st.metric(
         label="Overall Active time ration indicator (All User Stories)",
-        value=f"{active_time_indicator:.2f}" if active_time_indicator else "N/A"
+        value=f"{active_time_indicator:.2f} %" if active_time_indicator else "N/A"
     )
 
 with col2:
     st.metric(
         label=f"Active time ration indicator (Last Iteration: {last_iter_name})",
-        value=f"{last_iter_estimate_accuracy:.2f}" if last_iter_estimate_accuracy else "N/A"
+        value=f"{active_time_indicator_last_sprint:.2f} %" if active_time_indicator_last_sprint else "N/A"
     )
 
 # ---------------------------------------------
