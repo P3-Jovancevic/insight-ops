@@ -474,7 +474,7 @@ def calc_cycle_time_effort(row):
 workitems_df["EstimateAccuracy"] = workitems_df.apply(calc_cycle_time_effort, axis=1)
 
 valid_estimates = workitems_df["EstimateAccuracy"].dropna()
-overall_estimate_accuracy = valid_estimates.mean() if not valid_estimates.empty else None
+active_time_indicator = valid_estimates.mean() if not valid_estimates.empty else None
 
 last_iter_path = latest_iteration["path"]
 last_iter_items = workitems_df[workitems_df["System_IterationPath"] == last_iter_path]
@@ -483,18 +483,18 @@ last_iter_estimate_accuracy = last_iter_estimates.mean() if not last_iter_estima
 
 last_iter_name = last_iter_path.split("\\")[-1]
 
-st.subheader("Estimate Accuracy (Cycle Time / Story Points)")
+st.subheader("Active time ration indicator (Cycle Time / Story Points)")
 col1, col2 = st.columns(2)
 
 with col1:
     st.metric(
-        label="Overall Estimate Accuracy (All User Stories)",
-        value=f"{overall_estimate_accuracy:.2f}" if overall_estimate_accuracy else "N/A"
+        label="Overall Active time ration indicator (All User Stories)",
+        value=f"{active_time_indicator:.2f}" if active_time_indicator else "N/A"
     )
 
 with col2:
     st.metric(
-        label=f"Estimate Accuracy (Last Iteration: {last_iter_name})",
+        label=f"Active time ration indicator (Last Iteration: {last_iter_name})",
         value=f"{last_iter_estimate_accuracy:.2f}" if last_iter_estimate_accuracy else "N/A"
     )
 
