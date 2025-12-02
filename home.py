@@ -558,7 +558,7 @@ if submit:
         "Recent active time indicator": active_time_indicator_last_sprint,
         "Last iteration": latest_iteration["path"],
         "Iteration count": num_iterations,
-        "Workitem count": len(workitems_df),
+        # "Workitem count (total number of User Stories)": len(workitems_df),
         "Team size": st.session_state["team_size"],
         "Capacity per person per iteration": st.session_state["capacity_per_person"],
     }
