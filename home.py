@@ -599,6 +599,7 @@ if submit:
         - Bottlenecks or issues (based on CFD and team capacity, active time indicator)
         - Recommendations for improvement (actions, workshops, etc.)
         - Iterations are Sprints, and they are two weeks long
+        - Capacity is per iteration
         Be brief, concise. If data is unclear, make sure to note that too.
         The paradigm for capacity and effort is 1 capacity (day) is 1 effort (story point), with fibbonacci in mind (effort is estimated in 1, 2, 3, 5, 8, 13, 21+)
         """
