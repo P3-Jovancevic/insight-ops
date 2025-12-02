@@ -572,9 +572,22 @@ if submit:
     # Average throughput per iteration
     avg_throughput_per_iteration = total_done_effort / num_iterations if num_iterations else 0
 
+    # Include effort-based CFD metrics if available
+    if 'cfd_df' in locals() and not cfd_df.empty:
+        last_row = cfd_df.iloc[-1]
+        total_done_effort = last_row["Done"]
+        total_in_progress_effort = last_row["In Progress"]
+        total_todo_effort = last_row["To Do"]
+
+        # Average daily throughput (Done effort per day)
+        # daily_done_diff = cfd_df["Done"].diff().dropna()
+        # avg_daily_throughput = daily_done_diff.mean() if not daily_done_diff.empty else 0
+
     # Update metrics_summary
     metrics_summary.update({
         "Total effort done": total_done_effort,
+        "Total in progress effort": total_in_progress_effort,
+        "Total effort to be done": total_todo_effort,
         "Iteration count": num_iterations,
         "Average throughput (effort per iteration)": avg_throughput_per_iteration
 })
