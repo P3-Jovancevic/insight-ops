@@ -545,6 +545,9 @@ if submit:
     st.session_state["team_size"] = temp_team_size
     st.session_state["capacity_per_person"] = temp_capacity_per_person
 
+    # Number of iterations
+    num_iterations = len(iterations_df)
+
     # Build base metrics summary
     metrics_summary = {
         "Overall lead time": overall_lead_time,
@@ -554,23 +557,11 @@ if submit:
         "Overall active time indicator": active_time_indicator,
         "Recent active time indicator": active_time_indicator_last_sprint,
         "Last iteration": latest_iteration["path"],
-        "Iteration count": len(iterations_df),
+        "Iteration count": num_iterations,
         "Workitem count": len(workitems_df),
         "Team size": st.session_state["team_size"],
         "Capacity per person per iteration": st.session_state["capacity_per_person"],
     }
-
-    # Calculate Total effort done from all Done User Stories
-    total_done_effort = workitems_df.loc[
-        workitems_df["Microsoft_VSTS_Common_ClosedDate"].notna(),
-        "Microsoft_VSTS_Scheduling_Effort"
-    ].sum(skipna=True)
-
-    # Number of iterations
-    num_iterations = len(iterations_df)
-
-    # Average throughput per iteration
-    avg_throughput_per_iteration = total_done_effort / num_iterations if num_iterations else 0
 
     # Include effort-based CFD metrics if available
     if 'cfd_df' in locals() and not cfd_df.empty:
@@ -582,30 +573,16 @@ if submit:
         # Average daily throughput (Done effort per day)
         daily_done_diff = cfd_df["Done"].diff().dropna()
         avg_daily_throughput = daily_done_diff.mean() if not daily_done_diff.empty else 0
-
-    # Update metrics_summary
-    metrics_summary.update({
-        "Total effort done": total_done_effort,
-        "Total in progress effort": total_in_progress_effort,
-        "Total effort to be done": total_todo_effort,
-        "Iteration count": num_iterations,
-        "Average throughput (effort per iteration)": avg_throughput_per_iteration })
-
-        # Include effort-based CFD metrics if available
-    if 'cfd_df' in locals() and not cfd_df.empty:
-        last_row = cfd_df.iloc[-1]
-        total_done_effort = last_row["Done"]
-        total_in_progress_effort = last_row["In Progress"]
-        total_todo_effort = last_row["To Do"]
+        avg_per_iteration_throughput = total_done_effort / num_iterations if num_iterations else 0
         
-        # Average daily throughput (Done effort per day)
-        daily_done_diff = cfd_df["Done"].diff().dropna()
-        avg_daily_throughput = daily_done_diff.mean() if not daily_done_diff.empty else 0
-        
+
         metrics_summary.update({
-            "Average throughput (effort done per Iteration)": avg_daily_throughput
-            })
-    
+            "Total effort done": total_done_effort,
+            "Total in progress effort": total_in_progress_effort,
+            "Total effort to be done": total_todo_effort,
+            "Average daily throughput (effort done per day)": avg_daily_throughput,
+            "Average throughput (effort done per Iteration)": avg_per_iteration_throughput
+        })
 
     # -------------------------
     # Send to AI
